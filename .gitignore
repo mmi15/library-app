@@ -1,0 +1,14 @@
+# Entorno virtual
+venv/
+
+# Archivos temporales y caché de Python
+__pycache__/
+*.pyc
+
+# Base de datos (si la creas con SQLite)
+*.db
+
+# Archivos de PyInstaller si llegas a usarlos
+dist/
+build/
+*.spec
