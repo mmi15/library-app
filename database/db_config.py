@@ -3,19 +3,27 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 USER = "root"
-PASSWORD = " "
+PASSWORD = ""
 HOST = "localhost"
 PORT = "3306"
-BBDD_NAME = "library"
+DB_NAME = "library"
 
 # String of connection (MySQL + mysql-connector)
-DATABASE_URL = f"mysql+mysqlconnector://{USER}:{PASSWORD}@{HOST}:{PORT}/{BBDD_NAME}"
+if PASSWORD == "":
+    DATABASE_URL = f"mysql+mysqlconnector://{USER}@{HOST}:{PORT}/{DB_NAME}"
+else:
+    DATABASE_URL = f"mysql+mysqlconnector://{USER}:{PASSWORD}@{HOST}:{PORT}/{DB_NAME}"
 
 # Create engine
-engine = create_engine(DATABASE_URL)
+
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,  # evita conexiones muertas
+    echo=False           # pon True si quieres ver el SQL que se ejecuta
+)
 
 # Create session
 SessionLocal = sessionmaker(autocomit=False, autoflush=False, bind=engine)
 
 # Basis for the models
-Basis = declarative_base()
+Base = declarative_base()
