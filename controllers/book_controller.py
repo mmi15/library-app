@@ -23,3 +23,16 @@ def list_books():
         )
     finally:
         s.close()
+
+def create_book():
+    s = SessionLocal()
+    try:
+        b = Book(**data)
+        s.add(b)
+        s.commit()
+        return b.id
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
