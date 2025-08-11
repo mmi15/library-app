@@ -29,7 +29,7 @@ class FormBook(ctk.CTkToplevel):
 
         #Fields
         self.title = ctk.CTkEntry(self, placeholder_text="Título")
-        self.title.pack(fill="X", padx=16, pady=8)
+        self.title.pack(fill="x", padx=16, pady=8)
 
         self.cb_autor = ctk.CTkComboBox(self, values=list(self.map_author.keys()))
         self.cb_autor.pack(fill="x", padx=16, pady=4)
@@ -48,10 +48,10 @@ class FormBook(ctk.CTkToplevel):
         self.cb_coll.pack(fill="x", padx=16, pady=4)
 
         self.year_pub = ctk.CTkEntry(self, placeholder_text="Año publicación (opcional)")
-        self.year_pub.pack(fill="X", padx=16, pady=8)
+        self.year_pub.pack(fill="x", padx=16, pady=8)
 
         self.year_ed = ctk.CTkEntry(self, placeholder_text="Año edición (opcional)")
-        self.year_ed.pack(fill="X", padx=16, pady=8)
+        self.year_ed.pack(fill="x", padx=16, pady=8)
 
         ctk.CTkButton(self, text="Guardar", command=self._save).pack(pady=12)
 
@@ -63,14 +63,14 @@ class FormBook(ctk.CTkToplevel):
             return
         
         data = {
-            "title": titulo,
-            "author_id": self.map_autor.get(self.cb_autor.get()),
+            "title": title,
+            "author_id": self.map_author.get(self.cb_autor.get()),
             "publisher_id": self.map_pub.get(self.cb_pub.get()),
-            "theme_id": self.map_tm.get(self.cb_tm.get()),
+            "theme_id": self.map_thm.get(self.cb_thm.get()),
             "location_id": self.map_loc.get(self.cb_loc.get()),
             "collection_id": self.map_coll.get(self.cb_coll.get()),
-            "publication_year": int(self.anio_pub.get()) if self.anio_pub.get().isdigit() else None,
-            "edition_year": int(self.anio_ed.get()) if self.anio_ed.get().isdigit() else None,
+            "publication_year": int(self.year_pub.get()) if self.year_pub.get().isdigit() else None,
+            "edition_year": int(self.year_ed.get()) if self.year_ed.get().isdigit() else None,
         }
         create_book(data)
         if self.on_saved:
