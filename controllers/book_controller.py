@@ -104,3 +104,38 @@ def delete_book(book_id: int) -> None:
         except SQLAlchemyError as e:
             session.rollback()
             raise ValueError("No se pudo eliminar el libro. " + str(e))
+        
+# -------- UPDATE --------
+def update_book(book_id: int, payload: dict) -> Book:
+    if not book_id:
+        raise ValueError("ID de libro no válido.")
+    for k in ("publication_year", "edition_year"):
+        if k in payload:
+            v = payload[k]
+            if v in ("", None):
+                payload[k] = None
+            else:
+                try:
+                    payload[k] = int(v)
+                except (TypeError, ValueError):
+                    raise ValueError(f"El campo '{k}' debe ser numérico o vacío.")
+
+    with SessionLocal() as s:
+        try:
+            book = s.get(Book, book_id)
+            if not book:
+                raise ValueError("El libro no existe.")
+            # Actualiza solo las claves presentes en payload
+            for k, v in payload.items():
+                if hasattr(book, k):
+                    setattr(book, k, v if v != "" else None)
+            s.commit()
+            s.refresh(book)
+            return book
+        except SQLAlchemyError as e:
+            s.rollback()
+            raise ValueError("No se pudo actualizar el libro. " + str(e))
+        
+def get_book(book_id: int) -> Book | None:
+    with SessionLocal() as s:
+        return s.get(Book, book_id)

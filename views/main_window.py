@@ -14,21 +14,28 @@ class MainWindow(ctk.CTk):
         cont = ctk.CTkFrame(self)
         cont.pack(fill='both', expand=True, padx=10, pady=10)
 
-        self.table = ttk.Treeview(cont, columns=("title", "author", "publisher", "theme", "location", "collection", "publication_year", "edition_year", "actions"),
-                                show="headings", height=16)
-        
-        for col, txt in zip(self.table["columns"],
-                            ["Título", "Autor", "Editorial", "Tema", "Ubicación", "Colección", "Año publicación", "Año edición", "Acciones"]):
+        self.table = ttk.Treeview(
+            cont,
+            columns=("title", "author", "publisher", "theme", "location", "collection", "publication_year", "edition_year", "actions"),
+            show="headings",
+            height=16
+        )
+
+        headers = ["Título", "Autor", "Editorial", "Tema", "Ubicación", "Colección", "Año publicación", "Año edición", "Acciones"]
+        for col, txt in zip(self.table["columns"], headers):
             self.table.heading(col, text=txt)
             if col == "actions":
-                self.table.column(col, width=70, stretch=False, anchor="center")
+                self.table.column(col, width=90, stretch=False, anchor="center")  # más ancho para 2 iconos
             elif col in ("publication_year", "edition_year"):
                 self.table.column(col, width=110, stretch=False, anchor="center")
             else:
                 self.table.column(col, width=150, stretch=True, anchor="w")
+
         self.table.pack(fill="both", expand=True)
 
+        # eventos
         self.table.bind("<Button-1>", self._on_tree_click)
+        self.table.bind("<Motion>", self._on_motion)
 
         btns = ctk.CTkFrame(self)
         btns.pack(pady=8)
@@ -46,28 +53,73 @@ class MainWindow(ctk.CTk):
             coll = b.collection.name if b.collection else "-"
             self.table.insert(
                 "", "end",
-                iid=str(b.id),  # 👈 asegura que el iid sea el ID del libro
-                values=(b.title, b.author.name, b.publisher.name, b.theme.name, loc, coll, b.publication_year, b.edition_year, "🗑️")
+                iid=str(b.id),
+                values=(
+                    b.title,
+                    b.author.name,
+                    b.publisher.name,
+                    b.theme.name,
+                    loc,
+                    coll,
+                    b.publication_year,
+                    b.edition_year,
+                    "✏️  🗑️"  # acciones: editar / borrar
+                )
             )
-            
 
     def open_form(self):
         from views.form_book import FormBook
         FormBook(self, on_saved=self.refresh)
-    
+
+    def _on_motion(self, event):
+        """Cambia el cursor a mano solo sobre la columna Acciones."""
+        region = self.table.identify("region", event.x, event.y)
+        col_id = self.table.identify_column(event.x)
+        try:
+            actions_idx = self.table["columns"].index("actions") + 1
+        except ValueError:
+            actions_idx = -1
+        if region == "cell" and col_id == f"#{actions_idx}":
+            self.table.configure(cursor="hand2")
+        else:
+            self.table.configure(cursor="")
+
     def _on_tree_click(self, event):
         region = self.table.identify("region", event.x, event.y)
         if region != "cell":
             return
-        
+
         row_id = self.table.identify_row(event.y)
         col_id = self.table.identify_column(event.x)
         if not row_id or not col_id:
-                return
-        
+            return
+
         actions_index = self.table["columns"].index("actions") + 1
-        if col_id == f"#{actions_index}":
-            self._confirm_delete(row_id)
+        if col_id != f"#{actions_index}":
+            return
+
+        # Determinar si clic fue en la mitad izquierda (✏️) o derecha (🗑️)
+        bbox = self.table.bbox(row_id, f"#{actions_index}")  # (x, y, w, h) relativo al widget
+        if not bbox:
+            return
+        cell_x, _, cell_w, _ = bbox
+        rel_x = event.x - cell_x
+        left_half = rel_x < (cell_w / 2)
+
+        if left_half:
+            self._open_edit_modal(row_id)   # ✏️ editar
+        else:
+            self._confirm_delete(row_id)    # 🗑️ borrar
+
+    def _open_edit_modal(self, row_id: str):
+        # Abre el formulario en modo edición con el libro precargado
+        from views.form_book import FormBook
+        try:
+            book_id = int(row_id)
+        except ValueError:
+            messagebox.showerror("Error", "No se pudo identificar el ID del libro.")
+            return
+        FormBook(self, on_saved=self.refresh, mode="edit", book_id=book_id)
 
     def _confirm_delete(self, row_id: str):
         from controllers.book_controller import delete_book
@@ -75,7 +127,12 @@ class MainWindow(ctk.CTk):
         item = self.table.item(row_id)
         vals = item.get("values", [])
         title = vals[0] if vals else "(sin título)"
-        book_id = int(row_id)
+
+        try:
+            book_id = int(row_id)
+        except ValueError:
+            messagebox.showerror("Error", "No se pudo identificar el ID del libro.")
+            return
 
         ok = messagebox.askyesno(
             "Confirmar eliminación",
