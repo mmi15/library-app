@@ -6,6 +6,7 @@ from models.publisher import Publisher
 from models.theme import Theme
 from models.location import Location
 from models.collection import Collection
+from sqlalchemy.exc import SQLAlchemyError
 
 # -------- MAIN LIST (with relationships preloaded) --------
 def list_books():
@@ -89,3 +90,17 @@ def create_book(data: dict) -> int:
     finally:
         s.close()
 
+# -------- DELETE --------
+def delete_book(book_id: int) -> None:
+    if not book_id:
+        raise ValueError("ID del libro no válido")
+    with SessionLocal() as session:
+        try:
+            book = session.get(Book, book_id)
+            if not book:
+                raise ValueError("El libro ya no existe (ID no encontrado)")
+            session.delete(book)
+            session.commit()
+        except SQLAlchemyError as e:
+            session.rollback()
+            raise ValueError("No se pudo eliminar el libro. " + str(e))
