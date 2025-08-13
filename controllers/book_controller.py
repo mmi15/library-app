@@ -10,21 +10,18 @@ from sqlalchemy.exc import SQLAlchemyError
 
 # -------- MAIN LIST (with relationships preloaded) --------
 def list_books():
-    s = SessionLocal()
-    try:
+    with SessionLocal() as s:
         return (
             s.query(Book)
-             .options(
-                 joinedload(Book.author),
-                 joinedload(Book.publisher),
-                 joinedload(Book.theme),
-                 joinedload(Book.location),
-                 joinedload(Book.collection)
-             )
-             .all()
+            .options(
+                joinedload(Book.author),
+                joinedload(Book.publisher),
+                joinedload(Book.theme),
+                joinedload(Book.location),
+                joinedload(Book.collection),
+            )
+            .all()
         )
-    finally:
-        s.close()
 
 # -------- GENERAL HELPERS --------
 def _get_all(Model, order_attr="id"):

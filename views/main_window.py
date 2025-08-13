@@ -48,24 +48,38 @@ class MainWindow(ctk.CTk):
         for r in self.table.get_children():
             self.table.delete(r)
 
-        for b in list_books():
-            loc = f"{b.location.place}/{b.location.furniture}"
-            coll = b.collection.name if b.collection else "-"
+        from controllers.book_controller import list_books
+        rows = list_books()
+
+        def val(obj, attr="name", default="-"):
+            return getattr(obj, attr) if obj else default
+
+        for b in rows:
+            # autor / editorial / tema / colección
+            author     = val(b.author)
+            publisher  = val(b.publisher)
+            theme      = val(b.theme)
+            collection = val(b.collection)
+
+            # ubicación (cada parte puede ser None)
+            if b.location:
+                place     = b.location.place or "-"
+                furniture = b.location.furniture or "-"
+                module    = b.location.module or "-"
+                shelf     = b.location.shelf
+                loc = f"{place}/{furniture}" + (f" ({module},{shelf})" if (module or shelf is not None) else "")
+            else:
+                loc = "-"
+
+            pub_year = b.publication_year if b.publication_year is not None else ""
+            edi_year = b.edition_year if b.edition_year is not None else ""
+
             self.table.insert(
                 "", "end",
                 iid=str(b.id),
-                values=(
-                    b.title,
-                    b.author.name,
-                    b.publisher.name,
-                    b.theme.name,
-                    loc,
-                    coll,
-                    b.publication_year,
-                    b.edition_year,
-                    "✏️  🗑️"  # acciones: editar / borrar
-                )
+                values=(b.title, author, publisher, theme, loc, collection, pub_year, edi_year, "✏️  🗑️")
             )
+
 
     def open_form(self):
         from views.form_book import FormBook
