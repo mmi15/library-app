@@ -38,9 +38,14 @@ class MainWindow(ctk.CTk):
         self.table.bind("<Motion>", self._on_motion)
 
         btns = ctk.CTkFrame(self)
-        btns.pack(pady=8)
-        ctk.CTkButton(btns, text="Refrescar", command=self.refresh).pack(side="left", padx=6)
-        ctk.CTkButton(btns, text="Añadir libro", command=self.open_form).pack(side="left", padx=6)
+        btns.pack(fill="x", padx=10, pady=8)
+
+        self.lbl_count = ctk.CTkLabel(btns, text="Libros: 0")
+        self.lbl_count.pack(side="left")  # contador a la izquierda
+
+        # Botones a la derecha
+        ctk.CTkButton(btns, text="Añadir libro", command=self.open_form).pack(side="right", padx=6)
+        ctk.CTkButton(btns, text="Refrescar", command=self.refresh).pack(side="right", padx=6)
 
         self.refresh()
 
@@ -79,6 +84,8 @@ class MainWindow(ctk.CTk):
                 iid=str(b.id),
                 values=(b.title, author, publisher, theme, loc, collection, pub_year, edi_year, "✏️  🗑️")
             )
+        # Contador total (formato 1.234 para ES)
+        self.lbl_count.configure(text=f"Libros: {len(rows):,}".replace(",", "."))
 
 
     def open_form(self):
