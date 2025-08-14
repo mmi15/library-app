@@ -9,6 +9,8 @@ class MainWindow(ctk.CTk):
         self.title('Biblioteca')
         self.geometry("900x500")
 
+        self.current_filters = {}
+
         ctk.CTkLabel(self, text="Libros", font=("Segoe UI", 18, "bold")).pack(pady=10)
 
         cont = ctk.CTkFrame(self)
@@ -46,6 +48,7 @@ class MainWindow(ctk.CTk):
         # Botones a la derecha
         ctk.CTkButton(btns, text="Añadir libro", command=self.open_form).pack(side="right", padx=6)
         ctk.CTkButton(btns, text="Refrescar", command=self.refresh).pack(side="right", padx=6)
+        ctk.CTkButton(btns, text="Filtros", command=self.open_filters).pack(side="right", padx=6)
 
         self.refresh()
 
@@ -53,8 +56,7 @@ class MainWindow(ctk.CTk):
         for r in self.table.get_children():
             self.table.delete(r)
 
-        from controllers.book_controller import list_books
-        rows = list_books()
+        rows = list_books(self.current_filters or None)
 
         def val(obj, attr="name", default="-"):
             return getattr(obj, attr) if obj else default
@@ -87,6 +89,18 @@ class MainWindow(ctk.CTk):
         # Contador total (formato 1.234 para ES)
         self.lbl_count.configure(text=f"Libros: {len(rows):,}".replace(",", "."))
 
+    # ----- filters -----
+    def open_filters(self):
+        from views.filter_window import FilterWindow
+        # opens modal and we pass the callback
+        FilterWindow(self, initial=self.current_filters, on_apply=self.apply_filters)
+
+    def apply_filters(self, filters: dict):
+        """Callback desde la ventana de filtros."""
+        # guardar solo campos con valor
+        self.current_filters = {k: v for k, v in (filters or {}).items() if v not in (None, "", [])}
+        self.refresh()  # <- aquí refrescamos la tabla con el filtro activo
+    # -------------------    
 
     def open_form(self):
         from views.form_book import FormBook

@@ -9,19 +9,65 @@ from models.collection import Collection
 from sqlalchemy.exc import SQLAlchemyError
 
 # -------- MAIN LIST (with relationships preloaded) --------
-def list_books():
+def list_books(filters=None):
+    filters = filters or {}
     with SessionLocal() as s:
-        return (
+        q = (
             s.query(Book)
             .options(
                 joinedload(Book.author),
                 joinedload(Book.publisher),
                 joinedload(Book.theme),
-                joinedload(Book.location),
                 joinedload(Book.collection),
+                joinedload(Book.location),
             )
-            .all()
         )
+
+        # --- Filtro por título ---
+        if t := filters.get("title"):
+            q = q.filter(Book.title.ilike(f"%{t}%"))
+
+        # --- Autor ---
+        if a := filters.get("author_name"):
+            q = q.join(Book.author, isouter=True).filter(Author.name.ilike(f"%{a}%"))
+
+        # --- Editorial ---
+        if p := filters.get("publisher_name"):
+            q = q.join(Book.publisher, isouter=True).filter(Publisher.name.ilike(f"%{p}%"))
+
+        # --- Tema ---
+        if th := filters.get("theme_name"):
+            q = q.join(Book.theme, isouter=True).filter(Theme.name.ilike(f"%{th}%"))
+
+        # --- Colección ---
+        if c := filters.get("collection_name"):
+            q = q.join(Book.collection, isouter=True).filter(Collection.name.ilike(f"%{c}%"))
+
+        # --- Año publicación ---
+        if (ymin := filters.get("pub_year_min")) is not None:
+            q = q.filter(Book.publication_year >= ymin)
+        if (ymax := filters.get("pub_year_max")) is not None:
+            q = q.filter(Book.publication_year <= ymax)
+
+        # --- Año edición ---
+        if (emin := filters.get("edi_year_min")) is not None:
+            q = q.filter(Book.edition_year >= emin)
+        if (emax := filters.get("edi_year_max")) is not None:
+            q = q.filter(Book.edition_year <= emax)
+
+        # --- Ubicación ---
+        if any(filters.get(k) not in (None, "") for k in ("place", "furniture", "module", "shelf")):
+            q = q.join(Book.location, isouter=True)
+            if v := filters.get("place"):
+                q = q.filter(Location.place.ilike(f"%{v}%"))
+            if v := filters.get("furniture"):
+                q = q.filter(Location.furniture.ilike(f"%{v}%"))
+            if v := filters.get("module"):
+                q = q.filter(Location.module.ilike(f"%{v}%"))
+            if (v := filters.get("shelf")) is not None:
+                q = q.filter(Location.shelf == v)
+
+        return q.order_by(Book.title.asc()).all()
 
 # -------- GENERAL HELPERS --------
 def _get_all(Model, order_attr="id"):
