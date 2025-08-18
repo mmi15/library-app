@@ -13,13 +13,13 @@ from controllers.book_controller import list_books
 from views.main_window import MainWindow
 
 
-#if __name__ == "__main__":
+# if __name__ == "__main__":
 #    print("Creando tablas en la base de datos...")
 #    Base.metadata.create_all(bind=engine)
 #    print("Tablas creadas correctamente.")
 
-#rows = list_books()
-#for b in rows:
+# rows = list_books()
+# for b in rows:
 #    print(
 #        b.id, b.title,
 #        b.author.name,
@@ -32,7 +32,3 @@ from views.main_window import MainWindow
 if __name__ == "__main__":
     app = MainWindow()
     app.mainloop()
-
-
-
-
