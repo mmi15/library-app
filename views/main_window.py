@@ -9,7 +9,11 @@ class MainWindow(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title('Biblioteca')
-        self.geometry("900x500")
+        self.after(0, self._start_maximized)
+
+        self.bind("<F11>", self._toggle_fullscreen)  # alterna fullscreen real
+        # salir de fullscreen real
+        self.bind("<Escape>", self._exit_fullscreen)
 
         self.current_filters = {}
 
@@ -88,6 +92,22 @@ class MainWindow(ctk.CTk):
             side="right", padx=6)
 
         self.refresh()
+
+    def _start_maximized(self):
+        try:
+            self.state("zoomed")  # Windows/Linux
+        except Exception:
+            # fallback raro, normalmente no hace falta
+            self.attributes("-zoomed", True)
+
+    # --- Opcional: fullscreen real (sin bordes) ---
+    def _toggle_fullscreen(self, event=None):
+        fs = self.attributes("-fullscreen")
+        self.attributes("-fullscreen", not fs)
+
+    def _exit_fullscreen(self, event=None):
+        if self.attributes("-fullscreen"):
+            self.attributes("-fullscreen", False)
 
     def refresh(self):
         # Vaciar la tabla

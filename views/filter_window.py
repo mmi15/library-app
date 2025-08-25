@@ -200,6 +200,7 @@ class FilterWindow(ctk.CTkToplevel):
         self.bind("<Return>", lambda e: self._apply())
         self.bind("<Escape>", lambda e: self._cancel())
 
+        self.after(0, self._center_over_master)
         # focus
         self.fields["title"].focus_set()
 
@@ -241,6 +242,35 @@ class FilterWindow(ctk.CTkToplevel):
             return int(val)
         except ValueError:
             return None
+
+    def _center_over_master(self):
+        try:
+            self.update_idletasks()
+            m = self.master
+            # tamaño del padre (si está maximizado también funciona)
+            mw, mh = m.winfo_width(), m.winfo_height()
+            mx, my = m.winfo_rootx(), m.winfo_rooty()
+
+            # tamaño del propio modal
+            ww, wh = self.winfo_width(), self.winfo_height()
+
+            # si el padre aún no tiene tamaño real, usar pantalla
+            if mw <= 1 or mh <= 1:
+                sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+                x = (sw - ww) // 2
+                y = (sh - wh) // 2
+            else:
+                x = mx + (mw - ww) // 2
+                y = my + (mh - wh) // 2
+
+            self.geometry(f"+{x}+{y}")
+        except Exception:
+            # último recurso: centrado en pantalla
+            sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
+            ww, wh = self.winfo_width(), self.winfo_height()
+            x = (sw - ww) // 2
+            y = (sh - wh) // 2
+            self.geometry(f"+{x}+{y}")
 
     # ----------------- acciones -----------------
     def _cancel(self):
