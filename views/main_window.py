@@ -27,6 +27,26 @@ class MainWindow(ctk.CTk):
             height=16
         )
 
+        self._num_columns = {"publication_year",
+                             "edition_year"}      # <- numéricas
+        # <- no ordenar
+        self._unsortable = {"actions"}
+        self._headers_txt = {                                         # etiquetas base
+            "title": "Título", "author": "Autor", "publisher": "Editorial", "theme": "Tema",
+            "location": "Ubicación", "collection": "Colección",
+            "publication_year": "Año publicación", "edition_year": "Año edición",
+            "actions": "Acciones",
+        }
+        self._sort_state = {"col": None, "asc": True}  # estado actual
+
+        for col in self.table["columns"]:
+            if col in self._unsortable:
+                self.table.heading(
+                    col, text=self._headers_txt[col])  # sin comando
+            else:
+                self.table.heading(col, text=self._headers_txt[col],
+                                   command=lambda c=col: self._sort_by(c))
+
         headers = ["Título", "Autor", "Editorial", "Tema", "Ubicación",
                    "Colección", "Año publicación", "Año edición", "Acciones"]
         for col, txt in zip(self.table["columns"], headers):
@@ -201,3 +221,59 @@ class MainWindow(ctk.CTk):
             self.refresh()
         except ValueError as e:
             messagebox.showerror("Error", str(e))
+
+    def _sort_by(self, col: str):
+        """Ordena la tabla por 'col'. Alterna asc/desc si se repite la misma columna."""
+        # Alternar orden si se vuelve a clickar la misma columna
+        if self._sort_state["col"] == col:
+            self._sort_state["asc"] = not self._sort_state["asc"]
+        else:
+            self._sort_state["col"] = col
+            self._sort_state["asc"] = True
+
+        asc = self._sort_state["asc"]
+
+        # Obtener todas las filas y construir clave de orden
+        items = list(self.table.get_children())
+
+        def to_num(v):
+            # Convierte a int si puede; trata "" y None como -inf/inf según asc para que queden al final
+            if v in (None, ""):
+                return float("inf") if asc else float("-inf")
+            try:
+                return int(v)
+            except (TypeError, ValueError):
+                try:
+                    # por si llega "2001.0"
+                    return int(float(v))
+                except Exception:
+                    return float("inf") if asc else float("-inf")
+
+        def key(item_id):
+            vals = self.table.item(item_id, "values")
+            # Mapear índice de columna
+            col_index = self.table["columns"].index(col)
+            v = vals[col_index] if col_index < len(vals) else ""
+            if col in self._num_columns:
+                return to_num(v)
+            # Texto: ordena ignorando mayúsculas/acentos sencillamente
+            return (v or "").lower()
+
+        # Ordenar y mover
+        items.sort(key=key, reverse=not asc)
+        for idx, iid in enumerate(items):
+            self.table.move(iid, "", idx)
+
+        # Actualizar indicadores ▲/▼ en la cabecera seleccionada
+        for c in self.table["columns"]:
+            base = self._headers_txt[c]
+            if c == col:
+                arrow = " ▲" if asc else " ▼"
+                self.table.heading(c, text=base + arrow)
+            else:
+                self.table.heading(c, text=base)
+
+    def _apply_current_sort(self):
+        """Reaplica el último orden después de recargar datos."""
+        if self._sort_state["col"]:
+            self._sort_by(self._sort_state["col"])
