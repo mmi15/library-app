@@ -60,7 +60,14 @@ class MainWindow(ctk.CTk):
             else:
                 self.table.column(col, width=150, stretch=True, anchor="w")
 
-        self.table.pack(fill="both", expand=True)
+        # --- Scrollbar vertical ---
+        scrollbar = ttk.Scrollbar(
+            cont, orient="vertical", command=self.table.yview)
+        self.table.configure(yscrollcommand=scrollbar.set)
+
+        # Empaquetar tabla y scroll en el frame cont
+        self.table.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
 
         # eventos
         self.table.bind("<Button-1>", self._on_tree_click)

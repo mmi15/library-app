@@ -6,6 +6,7 @@ from controllers.book_controller import (
     get_all_collections,
     get_all_themes
 )
+from tkinter import ttk
 
 # --- Placeholders (sentinelas) para combos ---
 AUTHOR_PH = "— Autor —"
@@ -17,6 +18,7 @@ COLLECTION_PH = "— Colección —"
 class FilterWindow(ctk.CTkToplevel):
     def __init__(self, master, initial=None, on_apply=None):
         super().__init__(master)
+        self._init_ttk_styles()
         self.title("Filtros")
         self.geometry("540x520")
         self.resizable(False, False)
@@ -32,12 +34,15 @@ class FilterWindow(ctk.CTkToplevel):
         form = ctk.CTkFrame(self)
         form.pack(fill="both", expand=True, padx=16, pady=16)
 
+        form.grid_columnconfigure(0, weight=0)
+        form.grid_columnconfigure(1, weight=1)
+
         # ---- helper para entries de texto libre ----
         def add_entry(row, label, key, width=260):
             ctk.CTkLabel(form, text=label).grid(
                 row=row, column=0, sticky="w", padx=(0, 10), pady=6)
             entry = ctk.CTkEntry(form, width=width)
-            entry.grid(row=row, column=1, sticky="w", pady=6)
+            entry.grid(row=row, column=1, sticky="ew", pady=6)
             if initial.get(key) not in (None, ""):
                 entry.insert(0, str(initial[key]))
             self.fields[key] = entry
@@ -45,17 +50,26 @@ class FilterWindow(ctk.CTkToplevel):
         # ====== Fila 0: Título ======
         add_entry(0, "Título", "title")
 
-        # ====== Fila 1: Autor (ComboBox con placeholder manual) ======
+        # ====== Fila 1: Autor ======
         ctk.CTkLabel(form, text="Autor").grid(
             row=1, column=0, sticky="w", padx=(0, 10), pady=6)
         author_values = self._unique([a.name for a in get_all_authors()])
         author_values = [AUTHOR_PH] + author_values
         self.author_var = ctk.StringVar(
             value=initial.get("author_name") or AUTHOR_PH)
-        self.author_combo = ctk.CTkComboBox(
-            form, values=author_values, variable=self.author_var, state="readonly", width=260
+
+        self.author_combo = ttk.Combobox(
+            form,
+            values=author_values,
+            textvariable=self.author_var,   # <- ttk usa textvariable
+            state="readonly",
+            height=10,                      # <- scroll en el desplegable
+            style="Dark.TCombobox",
         )
-        self.author_combo.grid(row=1, column=1, sticky="w", pady=6)
+        self.author_combo.grid(row=1, column=1, sticky="ew", pady=6)
+        self.author_combo.bind("<<ComboboxSelected>>",
+                               lambda e: self._apply_combo_placeholder(self.author_combo, AUTHOR_PH))
+        self._apply_combo_placeholder(self.author_combo, AUTHOR_PH)
 
         # ====== Fila 2: Editorial ======
         ctk.CTkLabel(form, text="Editorial").grid(
@@ -64,10 +78,19 @@ class FilterWindow(ctk.CTkToplevel):
         publisher_values = [PUBLISHER_PH] + publisher_values
         self.publisher_var = ctk.StringVar(
             value=initial.get("publisher_name") or PUBLISHER_PH)
-        self.publisher_combo = ctk.CTkComboBox(
-            form, values=publisher_values, variable=self.publisher_var, state="readonly", width=260
+
+        self.publisher_combo = ttk.Combobox(
+            form,
+            values=publisher_values,
+            textvariable=self.publisher_var,
+            state="readonly",
+            height=10,
+            style="Dark.TCombobox",
         )
-        self.publisher_combo.grid(row=2, column=1, sticky="w", pady=6)
+        self.publisher_combo.grid(row=2, column=1, sticky="ew", pady=6)
+        self.publisher_combo.bind("<<ComboboxSelected>>",
+                                  lambda e: self._apply_combo_placeholder(self.publisher_combo, PUBLISHER_PH))
+        self._apply_combo_placeholder(self.publisher_combo, PUBLISHER_PH)
 
         # ====== Fila 3: Tema ======
         ctk.CTkLabel(form, text="Tema").grid(
@@ -76,10 +99,19 @@ class FilterWindow(ctk.CTkToplevel):
         theme_values = [THEME_PH] + theme_values
         self.theme_var = ctk.StringVar(
             value=initial.get("theme_name") or THEME_PH)
-        self.theme_combo = ctk.CTkComboBox(
-            form, values=theme_values, variable=self.theme_var, state="readonly", width=260
+
+        self.theme_combo = ttk.Combobox(
+            form,
+            values=theme_values,
+            textvariable=self.theme_var,
+            state="readonly",
+            height=10,
+            style="Dark.TCombobox",
         )
-        self.theme_combo.grid(row=3, column=1, sticky="w", pady=6)
+        self.theme_combo.grid(row=3, column=1, sticky="ew", pady=6)
+        self.theme_combo.bind("<<ComboboxSelected>>",
+                              lambda e: self._apply_combo_placeholder(self.theme_combo, THEME_PH))
+        self._apply_combo_placeholder(self.theme_combo, THEME_PH)
 
         # ====== Fila 4: Colección ======
         ctk.CTkLabel(form, text="Colección").grid(
@@ -89,10 +121,19 @@ class FilterWindow(ctk.CTkToplevel):
         collection_values = [COLLECTION_PH] + collection_values
         self.collection_var = ctk.StringVar(
             value=initial.get("collection_name") or COLLECTION_PH)
-        self.collection_combo = ctk.CTkComboBox(
-            form, values=collection_values, variable=self.collection_var, state="readonly", width=260
+
+        self.collection_combo = ttk.Combobox(
+            form,
+            values=collection_values,
+            textvariable=self.collection_var,
+            state="readonly",
+            height=10,
+            style="Dark.TCombobox",
         )
-        self.collection_combo.grid(row=4, column=1, sticky="w", pady=6)
+        self.collection_combo.grid(row=4, column=1, sticky="ew", pady=6)
+        self.collection_combo.bind("<<ComboboxSelected>>",
+                                   lambda e: self._apply_combo_placeholder(self.collection_combo, COLLECTION_PH))
+        self._apply_combo_placeholder(self.collection_combo, COLLECTION_PH)
 
         # ====== Fila 5-6: Años (rango) ======
         ctk.CTkLabel(form, text="Año publicación").grid(
@@ -127,21 +168,23 @@ class FilterWindow(ctk.CTkToplevel):
         ctk.CTkLabel(form, text="Ubicación").grid(
             row=7, column=0, sticky="w", padx=(0, 10), pady=(12, 6))
         loc = ctk.CTkFrame(form)
-        loc.grid(row=7, column=1, sticky="w", pady=(12, 6))
-        self.place = ctk.CTkEntry(loc, placeholder_text="Lugar", width=110)
-        self.place.grid(row=0, column=0, padx=(0, 6))
-        self.furniture = ctk.CTkEntry(
-            loc, placeholder_text="Mueble", width=110)
-        self.furniture.grid(row=0, column=1, padx=(0, 6))
-        self.module = ctk.CTkEntry(loc, placeholder_text="Módulo", width=90)
-        self.module.grid(row=0, column=2, padx=(0, 6))
-        self.shelf = ctk.CTkEntry(loc, placeholder_text="Balda", width=90)
-        self.shelf.grid(row=0, column=3)
+        loc.grid(row=7, column=1, sticky="ew", pady=(12, 6))
 
-        # inicializar ubicación si vino algo
-        for k in ("place", "furniture", "module", "shelf"):
-            if initial.get(k) not in (None, ""):
-                getattr(self, k).insert(0, str(initial[k]))
+        # cada columna se reparte el espacio
+        for i in range(4):
+            loc.grid_columnconfigure(i, weight=1)
+
+        self.place = ctk.CTkEntry(loc, placeholder_text="Lugar")
+        self.place.grid(row=0, column=0, padx=(0, 6), sticky="ew")
+
+        self.furniture = ctk.CTkEntry(loc, placeholder_text="Mueble")
+        self.furniture.grid(row=0, column=1, padx=(0, 6), sticky="ew")
+
+        self.module = ctk.CTkEntry(loc, placeholder_text="Módulo")
+        self.module.grid(row=0, column=2, padx=(0, 6), sticky="ew")
+
+        self.shelf = ctk.CTkEntry(loc, placeholder_text="Balda")
+        self.shelf.grid(row=0, column=3, sticky="ew")
 
         # --- Botones: Limpiar | Aceptar | Cancelar ---
         btns = ctk.CTkFrame(self)
@@ -280,3 +323,35 @@ class FilterWindow(ctk.CTkToplevel):
         if callable(self.on_apply):
             self.on_apply(filters)
         self.destroy()
+
+    def _init_ttk_styles(self):
+        style = ttk.Style(self)  # NO cambiamos el tema global
+        # estilo base para combobox (texto oscuro)
+        style.configure(
+            "Dark.TCombobox",
+            foreground="#111111",
+            fieldbackground="#ffffff",
+            background="#ffffff",
+            borderwidth=0,
+            relief="flat",
+        )
+        style.map(
+            "Dark.TCombobox",
+            foreground=[("readonly", "#111111")],
+            fieldbackground=[("readonly", "#ffffff")],
+            background=[("readonly", "#ffffff")],
+        )
+        # estilo placeholder (gris)
+        style.configure(
+            "Placeholder.TCombobox",
+            foreground="#6b7280",
+            fieldbackground="#ffffff",
+            background="#ffffff",
+            borderwidth=0,
+            relief="flat",
+        )
+
+    def _apply_combo_placeholder(self, combo: ttk.Combobox, placeholder: str):
+        val = combo.get()
+        combo.configure(style="Placeholder.TCombobox" if val ==
+                        placeholder else "Dark.TCombobox")

@@ -5,6 +5,7 @@ from controllers.book_controller import (
     get_all_authors, get_all_publishers, get_all_themes, get_all_collections,
     get_all_locations, create_book, update_book, get_book
 )
+from tkinter import ttk
 
 # --- Placeholders (sentinelas) para combos ---
 AUTHOR_PH = "— Autor —"
@@ -24,6 +25,8 @@ class FormBook(ctk.CTkToplevel):
 
     def __init__(self, master, on_saved=None, mode="create", book=None, book_id=None):
         super().__init__(master)
+        self._init_ttk_styles()
+        self._setup_ttk_styles()
         self.on_saved = on_saved
         self.mode = mode
         self.book = book or (get_book(book_id) if (
@@ -70,53 +73,86 @@ class FormBook(ctk.CTkToplevel):
         r += 1
 
         # Autor
-        ctk.CTkLabel(form, text="Autor").grid(
-            row=r, column=0, sticky="w", padx=(0, 10), pady=6)
-        self.cb_autor = ctk.CTkComboBox(form, values=list(self.map_author.keys()), state="readonly",
-                                        command=lambda v: self._apply_combo_placeholder(self.cb_autor, AUTHOR_PH))
+        self.cb_autor = ttk.Combobox(
+            form,
+            values=list(self.map_author.keys()),
+            state="readonly",
+            height=10,                  # hace aparecer la barra cuando hay más de 10
+            # aplica estilo SOLO al combobox (no a la tabla)
+            style="Dark.TCombobox",
+        )
         self.cb_autor.set(AUTHOR_PH)
         self.cb_autor.grid(row=r, column=1, sticky="ew", pady=6)
+        self.cb_autor.bind("<<ComboboxSelected>>",
+                           lambda e: self._apply_combo_placeholder(self.cb_autor, AUTHOR_PH))
         self._apply_combo_placeholder(self.cb_autor, AUTHOR_PH)
-        r += 1
 
         # Editorial
         ctk.CTkLabel(form, text="Editorial").grid(
             row=r, column=0, sticky="w", padx=(0, 10), pady=6)
-        self.cb_pub = ctk.CTkComboBox(form, values=list(self.map_pub.keys()), state="readonly",
-                                      command=lambda v: self._apply_combo_placeholder(self.cb_pub, PUBLISHER_PH))
+        self.cb_pub = ttk.Combobox(
+            form,
+            values=list(self.map_pub.keys()),
+            state="readonly",
+            height=10,
+            style="Dark.TCombobox"
+        )
         self.cb_pub.set(PUBLISHER_PH)
         self.cb_pub.grid(row=r, column=1, sticky="ew", pady=6)
-        self._apply_combo_placeholder(self.cb_pub, PUBLISHER_PH)
+        self.cb_pub.bind("<<ComboboxSelected>>", lambda e: self._ttk_combo_apply_placeholder(
+            self.cb_pub, PUBLISHER_PH))
+        self._ttk_combo_apply_placeholder(self.cb_pub, PUBLISHER_PH)
         r += 1
 
         # Tema
         ctk.CTkLabel(form, text="Tema").grid(
             row=r, column=0, sticky="w", padx=(0, 10), pady=6)
-        self.cb_thm = ctk.CTkComboBox(form, values=list(self.map_thm.keys()), state="readonly",
-                                      command=lambda v: self._apply_combo_placeholder(self.cb_thm, THEME_PH))
+        self.cb_thm = ttk.Combobox(
+            form,
+            values=list(self.map_thm.keys()),
+            state="readonly",
+            height=10,
+            style="Dark.TCombobox"
+        )
         self.cb_thm.set(THEME_PH)
         self.cb_thm.grid(row=r, column=1, sticky="ew", pady=6)
-        self._apply_combo_placeholder(self.cb_thm, THEME_PH)
+        self.cb_thm.bind("<<ComboboxSelected>>", lambda e: self._ttk_combo_apply_placeholder(
+            self.cb_thm, THEME_PH))
+        self._ttk_combo_apply_placeholder(self.cb_thm, THEME_PH)
         r += 1
 
         # Ubicación
         ctk.CTkLabel(form, text="Ubicación").grid(
             row=r, column=0, sticky="w", padx=(0, 10), pady=6)
-        self.cb_loc = ctk.CTkComboBox(form, values=list(self.map_loc.keys()), state="readonly",
-                                      command=lambda v: self._apply_combo_placeholder(self.cb_loc, LOCATION_PH))
+        self.cb_loc = ttk.Combobox(
+            form,
+            values=list(self.map_loc.keys()),
+            state="readonly",
+            height=10,
+            style="Dark.TCombobox"
+        )
         self.cb_loc.set(LOCATION_PH)
         self.cb_loc.grid(row=r, column=1, sticky="ew", pady=6)
-        self._apply_combo_placeholder(self.cb_loc, LOCATION_PH)
+        self.cb_loc.bind("<<ComboboxSelected>>", lambda e: self._ttk_combo_apply_placeholder(
+            self.cb_loc, LOCATION_PH))
+        self._ttk_combo_apply_placeholder(self.cb_loc, LOCATION_PH)
         r += 1
 
         # Colección
         ctk.CTkLabel(form, text="Colección").grid(
             row=r, column=0, sticky="w", padx=(0, 10), pady=6)
-        self.cb_coll = ctk.CTkComboBox(form, values=list(self.map_coll.keys()), state="readonly",
-                                       command=lambda v: self._apply_combo_placeholder(self.cb_coll, COLLECTION_PH))
+        self.cb_coll = ttk.Combobox(
+            form,
+            values=list(self.map_coll.keys()),
+            state="readonly",
+            height=10,
+            style="Dark.TCombobox"
+        )
         self.cb_coll.set(COLLECTION_PH)
         self.cb_coll.grid(row=r, column=1, sticky="ew", pady=6)
-        self._apply_combo_placeholder(self.cb_coll, COLLECTION_PH)
+        self.cb_coll.bind("<<ComboboxSelected>>", lambda e: self._ttk_combo_apply_placeholder(
+            self.cb_coll, COLLECTION_PH))
+        self._ttk_combo_apply_placeholder(self.cb_coll, COLLECTION_PH)
         r += 1
 
         # Año publicación
@@ -171,6 +207,21 @@ class FormBook(ctk.CTkToplevel):
         combo.set(placeholder)
         self._apply_combo_placeholder(combo, placeholder)
 
+    def _setup_ttk_styles(self):
+        # define estilos para placeholder y normal (una sola vez)
+        if not hasattr(self, "_ttk_styles_ready"):
+            style = ttk.Style(self)
+            # hereda de TCombobox, solo cambiamos el color del texto
+            style.configure("Placeholder.TCombobox", foreground="gray55")
+            style.configure("Normal.TCombobox", foreground="")
+            self._ttk_styles_ready = True
+
+    def _ttk_combo_apply_placeholder(self, combo: ttk.Combobox, placeholder: str):
+        if combo.get() == placeholder:
+            combo.configure(style="Placeholder.TCombobox")
+        else:
+            combo.configure(style="Normal.TCombobox")
+
     # --- Placeholder visual para combos (gris cuando es sentinela) ---
     def _combo_default_text_color(self):
         try:
@@ -178,15 +229,33 @@ class FormBook(ctk.CTkToplevel):
         except Exception:
             return None
 
-    def _apply_combo_placeholder(self, combo: ctk.CTkComboBox, placeholder: str):
-        val = combo.get()
-        if val == placeholder:
-            combo.configure(text_color=("gray55", "gray60"))
-        else:
-            normal = self._combo_default_text_color()
-            combo.configure(text_color=normal if normal is not None else None)
+    def _apply_combo_placeholder(self, combo, placeholder: str):
+        val = combo.get() if hasattr(combo, "get") else None
+
+        # ttk.Combobox → aplica estilo según sea placeholder o valor real
+        try:
+            from tkinter import ttk
+            if isinstance(combo, ttk.Combobox):
+                combo.configure(style="Placeholder.TCombobox" if val == placeholder
+                                else "Dark.TCombobox")
+                return
+        except Exception:
+            pass
+
+        # (si conservas algún CTkComboBox en otras pantallas)
+        try:
+            if val == placeholder:
+                combo.configure(text_color=("gray55", "gray60"))
+            else:
+                from customtkinter import ThemeManager
+                normal = ThemeManager.theme["CTkComboBox"]["text_color"]
+                combo.configure(
+                    text_color=normal if normal is not None else None)
+        except Exception:
+            pass
 
     # ---------- Prefill ----------
+
     def _prefill_from_book(self):
         b = self.book
         self.title_entry.insert(0, b.title or "")
@@ -252,3 +321,33 @@ class FormBook(ctk.CTkToplevel):
             self.destroy()
         except ValueError as e:
             messagebox.showerror("Error", str(e))
+
+    def _init_ttk_styles(self):
+        style = ttk.Style(self)  # NO llamamos theme_use()
+
+        # Estilo base SOLO para tus Combobox (texto oscuro sobre fondo claro)
+        style.configure(
+            "Dark.TCombobox",
+            foreground="#111111",        # texto oscuro
+            # fondo del campo (puedes omitir para usar el del sistema)
+            fieldbackground="#ffffff",
+            background="#ffffff",
+            borderwidth=0,
+            relief="flat",
+        )
+        style.map(
+            "Dark.TCombobox",
+            foreground=[("readonly", "#111111")],
+            fieldbackground=[("readonly", "#ffffff")],
+            background=[("readonly", "#ffffff")],
+        )
+
+        # Estilo para placeholder (gris)
+        style.configure(
+            "Placeholder.TCombobox",
+            foreground="#6b7280",        # gris medio
+            fieldbackground="#ffffff",
+            background="#ffffff",
+            borderwidth=0,
+            relief="flat",
+        )
