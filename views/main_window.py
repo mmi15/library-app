@@ -2,6 +2,8 @@
 import customtkinter as ctk
 from tkinter import ttk, messagebox
 from controllers.book_controller import list_books
+from views.filter_window import FilterWindow
+
 
 class MainWindow(ctk.CTk):
     def __init__(self):
@@ -11,25 +13,30 @@ class MainWindow(ctk.CTk):
 
         self.current_filters = {}
 
-        ctk.CTkLabel(self, text="Libros", font=("Segoe UI", 18, "bold")).pack(pady=10)
+        ctk.CTkLabel(self, text="Libros", font=(
+            "Segoe UI", 18, "bold")).pack(pady=10)
 
         cont = ctk.CTkFrame(self)
         cont.pack(fill='both', expand=True, padx=10, pady=10)
 
         self.table = ttk.Treeview(
             cont,
-            columns=("title", "author", "publisher", "theme", "location", "collection", "publication_year", "edition_year", "actions"),
+            columns=("title", "author", "publisher", "theme", "location",
+                     "collection", "publication_year", "edition_year", "actions"),
             show="headings",
             height=16
         )
 
-        headers = ["Título", "Autor", "Editorial", "Tema", "Ubicación", "Colección", "Año publicación", "Año edición", "Acciones"]
+        headers = ["Título", "Autor", "Editorial", "Tema", "Ubicación",
+                   "Colección", "Año publicación", "Año edición", "Acciones"]
         for col, txt in zip(self.table["columns"], headers):
             self.table.heading(col, text=txt)
             if col == "actions":
-                self.table.column(col, width=90, stretch=False, anchor="center")  # más ancho para 2 iconos
+                self.table.column(
+                    col, width=90, stretch=False, anchor="center")
             elif col in ("publication_year", "edition_year"):
-                self.table.column(col, width=110, stretch=False, anchor="center")
+                self.table.column(
+                    col, width=110, stretch=False, anchor="center")
             else:
                 self.table.column(col, width=150, stretch=True, anchor="w")
 
@@ -46,13 +53,17 @@ class MainWindow(ctk.CTk):
         self.lbl_count.pack(side="left")  # contador a la izquierda
 
         # Botones a la derecha
-        ctk.CTkButton(btns, text="Añadir libro", command=self.open_form).pack(side="right", padx=6)
-        ctk.CTkButton(btns, text="Refrescar", command=self.refresh).pack(side="right", padx=6)
-        ctk.CTkButton(btns, text="Filtros", command=self.open_filters).pack(side="right", padx=6)
+        ctk.CTkButton(btns, text="Añadir libro",
+                      command=self.open_form).pack(side="right", padx=6)
+        ctk.CTkButton(btns, text="Refrescar", command=self.refresh).pack(
+            side="right", padx=6)
+        ctk.CTkButton(btns, text="Filtros", command=self.open_filters).pack(
+            side="right", padx=6)
 
         self.refresh()
 
     def refresh(self):
+        # Vaciar la tabla
         for r in self.table.get_children():
             self.table.delete(r)
 
@@ -62,19 +73,20 @@ class MainWindow(ctk.CTk):
             return getattr(obj, attr) if obj else default
 
         for b in rows:
-            # autor / editorial / tema / colección
-            author     = val(b.author)
-            publisher  = val(b.publisher)
-            theme      = val(b.theme)
+            author = val(b.author)
+            publisher = val(b.publisher)
+            theme = val(b.theme)
             collection = val(b.collection)
 
             # ubicación (cada parte puede ser None)
             if b.location:
-                place     = b.location.place or "-"
+                place = b.location.place or "-"
                 furniture = b.location.furniture or "-"
-                module    = b.location.module or "-"
-                shelf     = b.location.shelf
-                loc = f"{place}/{furniture}" + (f" ({module},{shelf})" if (module or shelf is not None) else "")
+                module = b.location.module or "-"
+                shelf = b.location.shelf
+                loc = f"{place}/{furniture}" + \
+                    (f" ({module},{shelf})" if (
+                        module or shelf is not None) else "")
             else:
                 loc = "-"
 
@@ -84,27 +96,32 @@ class MainWindow(ctk.CTk):
             self.table.insert(
                 "", "end",
                 iid=str(b.id),
-                values=(b.title, author, publisher, theme, loc, collection, pub_year, edi_year, "✏️  🗑️")
+                values=(b.title, author, publisher, theme, loc,
+                        collection, pub_year, edi_year, "✏️  🗑️")
             )
+
         # Contador total (formato 1.234 para ES)
-        self.lbl_count.configure(text=f"Libros: {len(rows):,}".replace(",", "."))
+        self.lbl_count.configure(
+            text=f"Libros: {len(rows):,}".replace(",", "."))
 
     # ----- filters -----
     def open_filters(self):
-        from views.filter_window import FilterWindow
-        # opens modal and we pass the callback
-        FilterWindow(self, initial=self.current_filters, on_apply=self.apply_filters)
+        FilterWindow(self, initial=self.current_filters,
+                     on_apply=self.apply_filters)
 
-    def apply_filters(self, filters: dict):
-        """Callback desde la ventana de filtros."""
-        # guardar solo campos con valor
-        self.current_filters = {k: v for k, v in (filters or {}).items() if v not in (None, "", [])}
-        self.refresh()  # <- aquí refrescamos la tabla con el filtro activo
-    # -------------------    
+    def apply_filters(self, new_filters: dict):
+        # Sustituye el dict (no uses .update() para no arrastrar valores antiguos)
+        self.current_filters = new_filters
+        self.refresh()
+
+    def clear_filters(self):
+        self.current_filters = {}
+        self.refresh()
 
     def open_form(self):
         from views.form_book import FormBook
         FormBook(self, on_saved=self.refresh)
+    # -------------------
 
     def _on_motion(self, event):
         """Cambia el cursor a mano solo sobre la columna Acciones."""
@@ -134,7 +151,7 @@ class MainWindow(ctk.CTk):
             return
 
         # Determinar si clic fue en la mitad izquierda (✏️) o derecha (🗑️)
-        bbox = self.table.bbox(row_id, f"#{actions_index}")  # (x, y, w, h) relativo al widget
+        bbox = self.table.bbox(row_id, f"#{actions_index}")
         if not bbox:
             return
         cell_x, _, cell_w, _ = bbox
@@ -147,12 +164,12 @@ class MainWindow(ctk.CTk):
             self._confirm_delete(row_id)    # 🗑️ borrar
 
     def _open_edit_modal(self, row_id: str):
-        # Abre el formulario en modo edición con el libro precargado
         from views.form_book import FormBook
         try:
             book_id = int(row_id)
         except ValueError:
-            messagebox.showerror("Error", "No se pudo identificar el ID del libro.")
+            messagebox.showerror(
+                "Error", "No se pudo identificar el ID del libro.")
             return
         FormBook(self, on_saved=self.refresh, mode="edit", book_id=book_id)
 
@@ -166,7 +183,8 @@ class MainWindow(ctk.CTk):
         try:
             book_id = int(row_id)
         except ValueError:
-            messagebox.showerror("Error", "No se pudo identificar el ID del libro.")
+            messagebox.showerror(
+                "Error", "No se pudo identificar el ID del libro.")
             return
 
         ok = messagebox.askyesno(
@@ -178,7 +196,8 @@ class MainWindow(ctk.CTk):
 
         try:
             delete_book(book_id)
-            messagebox.showinfo("Eliminado", f"El libro '{title}' ha sido eliminado.")
+            messagebox.showinfo(
+                "Eliminado", f"El libro '{title}' ha sido eliminado.")
             self.refresh()
         except ValueError as e:
             messagebox.showerror("Error", str(e))

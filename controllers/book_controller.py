@@ -8,7 +8,27 @@ from models.location import Location
 from models.collection import Collection
 from sqlalchemy.exc import SQLAlchemyError
 
+
+def _apply_year_range(q, col, vmin, vmax):
+    """Aplica un filtro robusto de rango:
+       - si vienen ambos, usa BETWEEN (auto-intercambia si están cruzados)
+       - si viene solo min, usa >=
+       - si viene solo max, usa <=
+       - si no viene ninguno, no filtra
+    """
+    if vmin is not None and vmax is not None:
+        if vmin > vmax:
+            vmin, vmax = vmax, vmin
+        return q.filter(col.between(vmin, vmax))
+    if vmin is not None:
+        return q.filter(col >= vmin)
+    if vmax is not None:
+        return q.filter(col <= vmax)
+    return q
+
 # -------- MAIN LIST (with relationships preloaded) --------
+
+
 def list_books(filters=None):
     filters = filters or {}
     with SessionLocal() as s:
@@ -29,31 +49,31 @@ def list_books(filters=None):
 
         # --- Autor ---
         if a := filters.get("author_name"):
-            q = q.join(Book.author, isouter=True).filter(Author.name.ilike(f"%{a}%"))
+            q = q.join(Book.author, isouter=True).filter(
+                Author.name.ilike(f"%{a}%"))
 
         # --- Editorial ---
         if p := filters.get("publisher_name"):
-            q = q.join(Book.publisher, isouter=True).filter(Publisher.name.ilike(f"%{p}%"))
+            q = q.join(Book.publisher, isouter=True).filter(
+                Publisher.name.ilike(f"%{p}%"))
 
         # --- Tema ---
         if th := filters.get("theme_name"):
-            q = q.join(Book.theme, isouter=True).filter(Theme.name.ilike(f"%{th}%"))
+            q = q.join(Book.theme, isouter=True).filter(
+                Theme.name.ilike(f"%{th}%"))
 
         # --- Colección ---
         if c := filters.get("collection_name"):
-            q = q.join(Book.collection, isouter=True).filter(Collection.name.ilike(f"%{c}%"))
+            q = q.join(Book.collection, isouter=True).filter(
+                Collection.name.ilike(f"%{c}%"))
 
         # --- Año publicación ---
-        if (ymin := filters.get("pub_year_min")) is not None:
-            q = q.filter(Book.publication_year >= ymin)
-        if (ymax := filters.get("pub_year_max")) is not None:
-            q = q.filter(Book.publication_year <= ymax)
+        q = _apply_year_exact_or_range(q, Book.publication_year,
+                                       filters.get("pub_year_min"), filters.get("pub_year_max"))
 
         # --- Año edición ---
-        if (emin := filters.get("edi_year_min")) is not None:
-            q = q.filter(Book.edition_year >= emin)
-        if (emax := filters.get("edi_year_max")) is not None:
-            q = q.filter(Book.edition_year <= emax)
+        q = _apply_year_exact_or_range(q, Book.edition_year,
+                                       filters.get("edi_year_min"), filters.get("edi_year_max"))
 
         # --- Ubicación ---
         if any(filters.get(k) not in (None, "") for k in ("place", "furniture", "module", "shelf")):
@@ -70,6 +90,8 @@ def list_books(filters=None):
         return q.order_by(Book.title.asc()).all()
 
 # -------- GENERAL HELPERS --------
+
+
 def _get_all(Model, order_attr="id"):
     s = SessionLocal()
     try:
@@ -79,17 +101,23 @@ def _get_all(Model, order_attr="id"):
         s.close()
 
 # -------- GET ALL to fill combobox --------
+
+
 def get_all_authors():
     return _get_all(Author, "name")
+
 
 def get_all_publishers():
     return _get_all(Publisher, "name")
 
+
 def get_all_themes():
     return _get_all(Theme, "name")
 
+
 def get_all_collections():
     return _get_all(Collection, "name")
+
 
 def get_all_locations():
     s = SessionLocal()
@@ -101,13 +129,15 @@ def get_all_locations():
                  Location.furniture.asc(),
                  Location.module.asc(),
                  Location.shelf.asc()
-             )
-             .all()
+            )
+            .all()
         )
     finally:
         s.close()
 
 # -------- CREATE (form “Añadir libro”) --------
+
+
 def create_book(data: dict) -> int:
     """
     data = {
@@ -134,6 +164,8 @@ def create_book(data: dict) -> int:
         s.close()
 
 # -------- DELETE --------
+
+
 def delete_book(book_id: int) -> None:
     if not book_id:
         raise ValueError("ID del libro no válido")
@@ -147,8 +179,10 @@ def delete_book(book_id: int) -> None:
         except SQLAlchemyError as e:
             session.rollback()
             raise ValueError("No se pudo eliminar el libro. " + str(e))
-        
+
 # -------- UPDATE --------
+
+
 def update_book(book_id: int, payload: dict) -> Book:
     if not book_id:
         raise ValueError("ID de libro no válido.")
@@ -161,7 +195,8 @@ def update_book(book_id: int, payload: dict) -> Book:
                 try:
                     payload[k] = int(v)
                 except (TypeError, ValueError):
-                    raise ValueError(f"El campo '{k}' debe ser numérico o vacío.")
+                    raise ValueError(
+                        f"El campo '{k}' debe ser numérico o vacío.")
 
     with SessionLocal() as s:
         try:
@@ -178,7 +213,23 @@ def update_book(book_id: int, payload: dict) -> Book:
         except SQLAlchemyError as e:
             s.rollback()
             raise ValueError("No se pudo actualizar el libro. " + str(e))
-        
+
+
 def get_book(book_id: int) -> Book | None:
     with SessionLocal() as s:
         return s.get(Book, book_id)
+
+
+def _apply_year_exact_or_range(q, col, vmin, vmax):
+    # 1) Ambos: rango (con auto-swap)
+    if vmin is not None and vmax is not None:
+        if vmin > vmax:
+            vmin, vmax = vmax, vmin
+        return q.filter(col.between(vmin, vmax))
+    # 2) Solo uno: igualdad exacta
+    if vmin is not None:
+        return q.filter(col == vmin)
+    if vmax is not None:
+        return q.filter(col == vmax)
+    # 3) Ninguno: sin filtro
+    return q
