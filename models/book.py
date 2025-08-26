@@ -1,6 +1,8 @@
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 from database.db_config import Base
+from . import borrow_book
+
 
 class Book(Base):
     __tablename__ = 'books'
@@ -11,16 +13,18 @@ class Book(Base):
     publisher_id = Column(Integer, ForeignKey('publishers.id'))
     theme_id = Column(Integer, ForeignKey('themes.id'))
     location_id = Column(Integer, ForeignKey('locations.id'))
-    collection_id = Column(Integer, ForeignKey('collections.id'), nullable=True)
+    collection_id = Column(Integer, ForeignKey(
+        'collections.id'), nullable=True)
     publication_year = Column(Integer, nullable=True)
     edition_year = Column(Integer, nullable=True)
-    
+
     author = relationship('Author')
     publisher = relationship('Publisher')
     theme = relationship('Theme')
     location = relationship('Location')
     collection = relationship('Collection')
-
+    borrows = relationship(
+        "BorrowBook", back_populates="book", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Book(id={self.id}, title='{self.title}')>"

@@ -1,5 +1,6 @@
 # views/main_window.py
 import customtkinter as ctk
+import tkinter.font as tkfont
 from tkinter import ttk, messagebox
 from controllers.book_controller import list_books
 from views.filter_window import FilterWindow
@@ -31,6 +32,8 @@ class MainWindow(ctk.CTk):
             height=16
         )
 
+        self._text_font = tkfont.nametofont("TkDefaultFont")
+
         self._num_columns = {"publication_year",
                              "edition_year"}      # <- numéricas
         # <- no ordenar
@@ -56,8 +59,8 @@ class MainWindow(ctk.CTk):
         for col, txt in zip(self.table["columns"], headers):
             self.table.heading(col, text=txt)
             if col == "actions":
-                self.table.column(
-                    col, width=90, stretch=False, anchor="center")
+                # <-- antes estaba center
+                self.table.column(col, width=130, stretch=False, anchor="w")
             elif col in ("publication_year", "edition_year"):
                 self.table.column(
                     col, width=110, stretch=False, anchor="center")
@@ -89,6 +92,8 @@ class MainWindow(ctk.CTk):
         ctk.CTkButton(btns, text="Refrescar", command=self.refresh).pack(
             side="right", padx=6)
         ctk.CTkButton(btns, text="Filtros", command=self.open_filters).pack(
+            side="right", padx=6)
+        ctk.CTkButton(btns, text="Préstamos", command=self.open_loans).pack(
             side="right", padx=6)
 
         self.refresh()
@@ -144,7 +149,7 @@ class MainWindow(ctk.CTk):
                 "", "end",
                 iid=str(b.id),
                 values=(b.title, author, publisher, theme, loc,
-                        collection, pub_year, edi_year, "✏️  🗑️")
+                        collection, pub_year, edi_year, "✏️  🗑️  📤")
             )
 
         # Contador total (formato 1.234 para ES)
@@ -168,6 +173,7 @@ class MainWindow(ctk.CTk):
     def open_form(self):
         from views.form_book import FormBook
         FormBook(self, on_saved=self.refresh)
+
     # -------------------
 
     def _on_motion(self, event):
@@ -197,18 +203,43 @@ class MainWindow(ctk.CTk):
         if col_id != f"#{actions_index}":
             return
 
-        # Determinar si clic fue en la mitad izquierda (✏️) o derecha (🗑️)
+        # bbox de la celda Acciones
         bbox = self.table.bbox(row_id, f"#{actions_index}")
         if not bbox:
             return
         cell_x, _, cell_w, _ = bbox
         rel_x = event.x - cell_x
-        left_half = rel_x < (cell_w / 2)
 
-        if left_half:
-            self._open_edit_modal(row_id)   # ✏️ editar
-        else:
-            self._confirm_delete(row_id)    # 🗑️ borrar
+        # Texto real de la celda (por si en el futuro cambias iconos)
+        actions_text = self.table.set(row_id, "actions")
+        if not actions_text:
+            return
+
+        # Partimos por dos espacios (exactamente los que pones en refresh)
+        parts = actions_text.split("  ")
+        # Calcula rangos x de cada trozo
+        ranges = []
+        acc = 0
+        for p in parts:
+            w = self._text_font.measure(p)
+            ranges.append((p, acc, acc + w))
+            acc += w + self._text_font.measure("  ")
+
+        clicked = None
+        for sym, x0, x1 in ranges:
+            if x0 <= rel_x <= x1:
+                clicked = sym
+                break
+        if not clicked:
+            return
+
+        # Acciones según el símbolo
+        if clicked == "✏️":
+            self._open_edit_modal(row_id)
+        elif clicked == "🗑️":
+            self._confirm_delete(row_id)
+        elif clicked == "📤":
+            self._open_loan_modal(row_id)   # <- nueva acción
 
     def _open_edit_modal(self, row_id: str):
         from views.form_book import FormBook
@@ -219,6 +250,23 @@ class MainWindow(ctk.CTk):
                 "Error", "No se pudo identificar el ID del libro.")
             return
         FormBook(self, on_saved=self.refresh, mode="edit", book_id=book_id)
+
+    def _open_loan_modal(self, row_id: str):
+        from views.form_borrow import FormBorrow
+        try:
+            book_id = int(row_id)
+        except ValueError:
+            messagebox.showerror(
+                "Error", "No se pudo identificar el ID del libro.")
+            return
+
+        # título del libro para mostrarlo en el form (solo lectura)
+        item = self.table.item(row_id)
+        vals = item.get("values", [])
+        book_title = vals[0] if vals else "(sin título)"
+
+        FormBorrow(self, book_id=book_id,
+                   book_title=book_title, on_saved=self.refresh)
 
     def _confirm_delete(self, row_id: str):
         from controllers.book_controller import delete_book
@@ -304,3 +352,7 @@ class MainWindow(ctk.CTk):
         """Reaplica el último orden después de recargar datos."""
         if self._sort_state["col"]:
             self._sort_by(self._sort_state["col"])
+
+    def open_loans(self):
+        from views.loans_window import LoansWindow
+        LoansWindow(self)
