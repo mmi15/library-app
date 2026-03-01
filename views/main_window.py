@@ -13,6 +13,7 @@ class MainWindow(ctk.CTk):
         # --- biblioteca seleccionada ---
         self.current_library_id = library_id
         self.current_library_name = library_name
+        self._library_modal_open = False  # ✅ flag para no abrir dos veces
 
         self.title(f"Biblioteca — {library_name}")
         self.after(0, self._start_maximized)
@@ -114,12 +115,10 @@ class MainWindow(ctk.CTk):
         for r in self.table.get_children():
             self.table.delete(r)
 
-        # ✅ IMPORTANTE: filtrar por biblioteca
-        # Ideal: list_books(filters, library_id=...)
+        # ✅ filtrar por biblioteca
         try:
             rows = list_books(self.current_filters or None, library_id=self.current_library_id)
         except TypeError:
-            # Fallback temporal si aún no has actualizado list_books
             rows = list_books(self.current_filters or None)
 
         def val(obj, attr="name", default="-"):
@@ -151,12 +150,11 @@ class MainWindow(ctk.CTk):
                         collection, pub_year, edi_year, "✏️  🗑️  📤")
             )
 
-        # Contador total (formato 1.234 para ES)
         self.lbl_count.configure(text=f"Libros: {len(rows):,}".replace(",", "."))
 
     # ----- filters -----
     def open_filters(self):
-        FilterWindow(self, initial=self.current_filters, on_apply=self.apply_filters, )
+        FilterWindow(self, initial=self.current_filters, on_apply=self.apply_filters)
 
     def apply_filters(self, new_filters: dict):
         self.current_filters = new_filters
@@ -168,7 +166,6 @@ class MainWindow(ctk.CTk):
 
     def open_form(self):
         from views.form_book import FormBook
-        # Ideal: pasar library_id al formulario para que cree book con esa biblioteca
         try:
             FormBook(self, on_saved=self.refresh)
         except TypeError:
@@ -243,7 +240,7 @@ class MainWindow(ctk.CTk):
             return
 
         try:
-            FormBook(self, on_saved=self.refresh, mode="edit", book_id=book_id, library_id=self.current_library_id)
+            FormBook(self, on_saved=self.refresh, mode="edit", book_id=book_id)
         except TypeError:
             FormBook(self, on_saved=self.refresh, mode="edit", book_id=book_id)
 
@@ -341,23 +338,27 @@ class MainWindow(ctk.CTk):
         self._library_modal_open = True
 
         def _selected(lib_id, lib_name):
+            # ✅ siempre liberamos el flag al seleccionar
             self._library_modal_open = False
             self._on_library_selected(lib_id, lib_name)
 
-        # Si el usuario pulsa "Salir", parent.destroy() cierra la app, así que no hace falta reset.
-        LibrarySelectModal(self, on_selected=_selected)
+        # ✅ CLAVE: al abrir desde MainWindow, NO es obligatorio (X cierra solo modal)
+        modal = LibrarySelectModal(self, on_selected=_selected, mandatory=False)
+
+        # ✅ si se cierra con X, también liberamos el flag
+        def _on_destroy(_evt=None):
+            self._library_modal_open = False
+
+        modal.bind("<Destroy>", _on_destroy)
 
     def _on_library_selected(self, library_id: int, library_name: str):
         """Callback cuando el usuario elige biblioteca en el modal."""
-        # Actualizar contexto
         self.current_library_id = library_id
         self.current_library_name = library_name
 
-        # Actualizar título
         self.title(f"Biblioteca — {library_name}")
 
-        # Recomendado: limpiar filtros al cambiar de biblioteca
+        # recomendado: limpiar filtros al cambiar de biblioteca
         self.current_filters = {}
 
-        # Refrescar tabla con la nueva biblioteca
         self.refresh()
