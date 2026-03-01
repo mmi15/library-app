@@ -5,8 +5,9 @@ from controllers.borrow_controller import list_loans, mark_returned
 
 
 class LoansWindow(ctk.CTkToplevel):
-    def __init__(self, master):
+    def __init__(self, master, library_id: int):
         super().__init__(master)
+        self.library_id = library_id
         self.title("Préstamos")
         self.geometry("1000x600")
         self.resizable(True, True)
@@ -62,7 +63,7 @@ class LoansWindow(ctk.CTkToplevel):
         for r in self.table.get_children():
             self.table.delete(r)
 
-        for borrow, book in list_loans():
+        for borrow, book in list_loans(self.library_id):
             title = book.title if book else "(desconocido)"
             person = borrow.name_person or "-"
             date_s = borrow.date_of_loan.isoformat() if borrow.date_of_loan else "-"
@@ -91,7 +92,7 @@ class LoansWindow(ctk.CTkToplevel):
             title = vals[1] if len(vals) > 1 else "(desconocido)"
             if messagebox.askyesno("Confirmar", f"¿Marcar como devuelto?\n\n• {title}"):
                 try:
-                    mark_returned(int(row_id))
+                    mark_returned(int(row_id), self.library_id)
                     self._load()
                 except Exception as e:
                     messagebox.showerror("Error", str(e))

@@ -8,13 +8,15 @@ class Book(Base):
     __tablename__ = 'books'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+
+    library_id = Column(Integer, ForeignKey("libraries.id"), nullable=False)  
+
     title = Column(String(255), nullable=False)
     author_id = Column(Integer, ForeignKey('authors.id'))
     publisher_id = Column(Integer, ForeignKey('publishers.id'))
     theme_id = Column(Integer, ForeignKey('themes.id'))
     location_id = Column(Integer, ForeignKey('locations.id'))
-    collection_id = Column(Integer, ForeignKey(
-        'collections.id'), nullable=True)
+    collection_id = Column(Integer, ForeignKey('collections.id'), nullable=True)
     publication_year = Column(Integer, nullable=True)
     edition_year = Column(Integer, nullable=True)
 
@@ -23,8 +25,7 @@ class Book(Base):
     theme = relationship('Theme')
     location = relationship('Location')
     collection = relationship('Collection')
-    borrows = relationship(
-        "BorrowBook", back_populates="book", cascade="all, delete-orphan")
+    borrows = relationship("BorrowBook", back_populates="book", cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<Book(id={self.id}, title='{self.title}')>"
+        return f"<Book(id={self.id}, library_id={self.library_id}, title='{self.title}')>"

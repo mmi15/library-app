@@ -7,19 +7,23 @@ from views.filter_window import FilterWindow
 
 
 class MainWindow(ctk.CTk):
-    def __init__(self):
+    def __init__(self, library_id: int, library_name: str):
         super().__init__()
-        self.title('Biblioteca')
+
+        # --- biblioteca seleccionada ---
+        self.current_library_id = library_id
+        self.current_library_name = library_name
+        self._library_modal_open = False  # ✅ flag para no abrir dos veces
+
+        self.title(f"Biblioteca — {library_name}")
         self.after(0, self._start_maximized)
 
         self.bind("<F11>", self._toggle_fullscreen)  # alterna fullscreen real
-        # salir de fullscreen real
-        self.bind("<Escape>", self._exit_fullscreen)
+        self.bind("<Escape>", self._exit_fullscreen)  # salir de fullscreen real
 
         self.current_filters = {}
 
-        ctk.CTkLabel(self, text="Libros", font=(
-            "Segoe UI", 18, "bold")).pack(pady=10)
+        ctk.CTkLabel(self, text="Libros", font=("Segoe UI", 18, "bold")).pack(pady=10)
 
         cont = ctk.CTkFrame(self)
         cont.pack(fill='both', expand=True, padx=10, pady=10)
@@ -34,45 +38,41 @@ class MainWindow(ctk.CTk):
 
         self._text_font = tkfont.nametofont("TkDefaultFont")
 
-        self._num_columns = {"publication_year",
-                             "edition_year"}      # <- numéricas
-        # <- no ordenar
-        self._unsortable = {"actions"}
-        self._headers_txt = {                                         # etiquetas base
+        self._num_columns = {"publication_year", "edition_year"}  # numéricas
+        self._unsortable = {"actions"}  # no ordenar
+        self._headers_txt = {
             "title": "Título", "author": "Autor", "publisher": "Editorial", "theme": "Tema",
             "location": "Ubicación", "collection": "Colección",
             "publication_year": "Año publicación", "edition_year": "Año edición",
             "actions": "Acciones",
         }
-        self._sort_state = {"col": None, "asc": True}  # estado actual
+        self._sort_state = {"col": None, "asc": True}
 
         for col in self.table["columns"]:
             if col in self._unsortable:
-                self.table.heading(
-                    col, text=self._headers_txt[col])  # sin comando
+                self.table.heading(col, text=self._headers_txt[col])  # sin comando
             else:
-                self.table.heading(col, text=self._headers_txt[col],
-                                   command=lambda c=col: self._sort_by(c))
+                self.table.heading(
+                    col,
+                    text=self._headers_txt[col],
+                    command=lambda c=col: self._sort_by(c)
+                )
 
         headers = ["Título", "Autor", "Editorial", "Tema", "Ubicación",
                    "Colección", "Año publicación", "Año edición", "Acciones"]
         for col, txt in zip(self.table["columns"], headers):
             self.table.heading(col, text=txt)
             if col == "actions":
-                # <-- antes estaba center
                 self.table.column(col, width=130, stretch=False, anchor="w")
             elif col in ("publication_year", "edition_year"):
-                self.table.column(
-                    col, width=110, stretch=False, anchor="center")
+                self.table.column(col, width=110, stretch=False, anchor="center")
             else:
                 self.table.column(col, width=150, stretch=True, anchor="w")
 
         # --- Scrollbar vertical ---
-        scrollbar = ttk.Scrollbar(
-            cont, orient="vertical", command=self.table.yview)
+        scrollbar = ttk.Scrollbar(cont, orient="vertical", command=self.table.yview)
         self.table.configure(yscrollcommand=scrollbar.set)
 
-        # Empaquetar tabla y scroll en el frame cont
         self.table.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
@@ -84,28 +84,24 @@ class MainWindow(ctk.CTk):
         btns.pack(fill="x", padx=10, pady=8)
 
         self.lbl_count = ctk.CTkLabel(btns, text="Libros: 0")
-        self.lbl_count.pack(side="left")  # contador a la izquierda
+        self.lbl_count.pack(side="left")
 
         # Botones a la derecha
-        ctk.CTkButton(btns, text="Añadir libro",
-                      command=self.open_form).pack(side="right", padx=6)
-        ctk.CTkButton(btns, text="Refrescar", command=self.refresh).pack(
-            side="right", padx=6)
-        ctk.CTkButton(btns, text="Filtros", command=self.open_filters).pack(
-            side="right", padx=6)
-        ctk.CTkButton(btns, text="Préstamos", command=self.open_loans).pack(
-            side="right", padx=6)
+        ctk.CTkButton(btns, text="Añadir libro", command=self.open_form).pack(side="right", padx=6)
+        ctk.CTkButton(btns, text="Refrescar", command=self.refresh).pack(side="right", padx=6)
+        ctk.CTkButton(btns, text="Filtros", command=self.open_filters).pack(side="right", padx=6)
+        ctk.CTkButton(btns, text="Préstamos", command=self.open_loans).pack(side="right", padx=6)
+        ctk.CTkButton(btns, text="Menú bibliotecas", command=self.open_library_menu).pack(side="right", padx=6)
 
+        # Ahora sí: ya hay biblioteca seleccionada, refrescamos
         self.refresh()
 
     def _start_maximized(self):
         try:
             self.state("zoomed")  # Windows/Linux
         except Exception:
-            # fallback raro, normalmente no hace falta
             self.attributes("-zoomed", True)
 
-    # --- Opcional: fullscreen real (sin bordes) ---
     def _toggle_fullscreen(self, event=None):
         fs = self.attributes("-fullscreen")
         self.attributes("-fullscreen", not fs)
@@ -119,7 +115,11 @@ class MainWindow(ctk.CTk):
         for r in self.table.get_children():
             self.table.delete(r)
 
-        rows = list_books(self.current_filters or None)
+        # ✅ filtrar por biblioteca
+        try:
+            rows = list_books(self.current_filters or None, library_id=self.current_library_id)
+        except TypeError:
+            rows = list_books(self.current_filters or None)
 
         def val(obj, attr="name", default="-"):
             return getattr(obj, attr) if obj else default
@@ -136,9 +136,7 @@ class MainWindow(ctk.CTk):
                 furniture = b.location.furniture or "-"
                 module = b.location.module or "-"
                 shelf = b.location.shelf
-                loc = f"{place}/{furniture}" + \
-                    (f" ({module},{shelf})" if (
-                        module or shelf is not None) else "")
+                loc = f"{place}/{furniture}" + (f" ({module},{shelf})" if (module or shelf is not None) else "")
             else:
                 loc = "-"
 
@@ -152,17 +150,13 @@ class MainWindow(ctk.CTk):
                         collection, pub_year, edi_year, "✏️  🗑️  📤")
             )
 
-        # Contador total (formato 1.234 para ES)
-        self.lbl_count.configure(
-            text=f"Libros: {len(rows):,}".replace(",", "."))
+        self.lbl_count.configure(text=f"Libros: {len(rows):,}".replace(",", "."))
 
     # ----- filters -----
     def open_filters(self):
-        FilterWindow(self, initial=self.current_filters,
-                     on_apply=self.apply_filters)
+        FilterWindow(self, initial=self.current_filters, on_apply=self.apply_filters)
 
     def apply_filters(self, new_filters: dict):
-        # Sustituye el dict (no uses .update() para no arrastrar valores antiguos)
         self.current_filters = new_filters
         self.refresh()
 
@@ -172,18 +166,19 @@ class MainWindow(ctk.CTk):
 
     def open_form(self):
         from views.form_book import FormBook
-        FormBook(self, on_saved=self.refresh)
-
-    # -------------------
+        try:
+            FormBook(self, on_saved=self.refresh)
+        except TypeError:
+            FormBook(self, on_saved=self.refresh)
 
     def _on_motion(self, event):
-        """Cambia el cursor a mano solo sobre la columna Acciones."""
         region = self.table.identify("region", event.x, event.y)
         col_id = self.table.identify_column(event.x)
         try:
             actions_idx = self.table["columns"].index("actions") + 1
         except ValueError:
             actions_idx = -1
+
         if region == "cell" and col_id == f"#{actions_idx}":
             self.table.configure(cursor="hand2")
         else:
@@ -203,21 +198,17 @@ class MainWindow(ctk.CTk):
         if col_id != f"#{actions_index}":
             return
 
-        # bbox de la celda Acciones
         bbox = self.table.bbox(row_id, f"#{actions_index}")
         if not bbox:
             return
         cell_x, _, cell_w, _ = bbox
         rel_x = event.x - cell_x
 
-        # Texto real de la celda (por si en el futuro cambias iconos)
         actions_text = self.table.set(row_id, "actions")
         if not actions_text:
             return
 
-        # Partimos por dos espacios (exactamente los que pones en refresh)
         parts = actions_text.split("  ")
-        # Calcula rangos x de cada trozo
         ranges = []
         acc = 0
         for p in parts:
@@ -233,40 +224,39 @@ class MainWindow(ctk.CTk):
         if not clicked:
             return
 
-        # Acciones según el símbolo
         if clicked == "✏️":
             self._open_edit_modal(row_id)
         elif clicked == "🗑️":
             self._confirm_delete(row_id)
         elif clicked == "📤":
-            self._open_loan_modal(row_id)   # <- nueva acción
+            self._open_loan_modal(row_id)
 
     def _open_edit_modal(self, row_id: str):
         from views.form_book import FormBook
         try:
             book_id = int(row_id)
         except ValueError:
-            messagebox.showerror(
-                "Error", "No se pudo identificar el ID del libro.")
+            messagebox.showerror("Error", "No se pudo identificar el ID del libro.")
             return
-        FormBook(self, on_saved=self.refresh, mode="edit", book_id=book_id)
+
+        try:
+            FormBook(self, on_saved=self.refresh, mode="edit", book_id=book_id)
+        except TypeError:
+            FormBook(self, on_saved=self.refresh, mode="edit", book_id=book_id)
 
     def _open_loan_modal(self, row_id: str):
         from views.form_borrow import FormBorrow
         try:
             book_id = int(row_id)
         except ValueError:
-            messagebox.showerror(
-                "Error", "No se pudo identificar el ID del libro.")
+            messagebox.showerror("Error", "No se pudo identificar el ID del libro.")
             return
 
-        # título del libro para mostrarlo en el form (solo lectura)
         item = self.table.item(row_id)
         vals = item.get("values", [])
         book_title = vals[0] if vals else "(sin título)"
 
-        FormBorrow(self, book_id=book_id,
-                   book_title=book_title, on_saved=self.refresh)
+        FormBorrow(self, book_id=book_id, book_title=book_title, on_saved=self.refresh)
 
     def _confirm_delete(self, row_id: str):
         from controllers.book_controller import delete_book
@@ -278,8 +268,7 @@ class MainWindow(ctk.CTk):
         try:
             book_id = int(row_id)
         except ValueError:
-            messagebox.showerror(
-                "Error", "No se pudo identificar el ID del libro.")
+            messagebox.showerror("Error", "No se pudo identificar el ID del libro.")
             return
 
         ok = messagebox.askyesno(
@@ -291,15 +280,12 @@ class MainWindow(ctk.CTk):
 
         try:
             delete_book(book_id)
-            messagebox.showinfo(
-                "Eliminado", f"El libro '{title}' ha sido eliminado.")
+            messagebox.showinfo("Eliminado", f"El libro '{title}' ha sido eliminado.")
             self.refresh()
         except ValueError as e:
             messagebox.showerror("Error", str(e))
 
     def _sort_by(self, col: str):
-        """Ordena la tabla por 'col'. Alterna asc/desc si se repite la misma columna."""
-        # Alternar orden si se vuelve a clickar la misma columna
         if self._sort_state["col"] == col:
             self._sort_state["asc"] = not self._sort_state["asc"]
         else:
@@ -307,39 +293,31 @@ class MainWindow(ctk.CTk):
             self._sort_state["asc"] = True
 
         asc = self._sort_state["asc"]
-
-        # Obtener todas las filas y construir clave de orden
         items = list(self.table.get_children())
 
         def to_num(v):
-            # Convierte a int si puede; trata "" y None como -inf/inf según asc para que queden al final
             if v in (None, ""):
                 return float("inf") if asc else float("-inf")
             try:
                 return int(v)
             except (TypeError, ValueError):
                 try:
-                    # por si llega "2001.0"
                     return int(float(v))
                 except Exception:
                     return float("inf") if asc else float("-inf")
 
         def key(item_id):
             vals = self.table.item(item_id, "values")
-            # Mapear índice de columna
             col_index = self.table["columns"].index(col)
             v = vals[col_index] if col_index < len(vals) else ""
             if col in self._num_columns:
                 return to_num(v)
-            # Texto: ordena ignorando mayúsculas/acentos sencillamente
             return (v or "").lower()
 
-        # Ordenar y mover
         items.sort(key=key, reverse=not asc)
         for idx, iid in enumerate(items):
             self.table.move(iid, "", idx)
 
-        # Actualizar indicadores ▲/▼ en la cabecera seleccionada
         for c in self.table["columns"]:
             base = self._headers_txt[c]
             if c == col:
@@ -348,11 +326,39 @@ class MainWindow(ctk.CTk):
             else:
                 self.table.heading(c, text=base)
 
-    def _apply_current_sort(self):
-        """Reaplica el último orden después de recargar datos."""
-        if self._sort_state["col"]:
-            self._sort_by(self._sort_state["col"])
-
     def open_loans(self):
         from views.loans_window import LoansWindow
-        LoansWindow(self)
+        LoansWindow(self, library_id=self.current_library_id)
+
+    def open_library_menu(self):
+        from views.library_select_modal import LibrarySelectModal
+
+        if getattr(self, "_library_modal_open", False):
+            return
+        self._library_modal_open = True
+
+        def _selected(lib_id, lib_name):
+            # ✅ siempre liberamos el flag al seleccionar
+            self._library_modal_open = False
+            self._on_library_selected(lib_id, lib_name)
+
+        # ✅ CLAVE: al abrir desde MainWindow, NO es obligatorio (X cierra solo modal)
+        modal = LibrarySelectModal(self, on_selected=_selected, mandatory=False)
+
+        # ✅ si se cierra con X, también liberamos el flag
+        def _on_destroy(_evt=None):
+            self._library_modal_open = False
+
+        modal.bind("<Destroy>", _on_destroy)
+
+    def _on_library_selected(self, library_id: int, library_name: str):
+        """Callback cuando el usuario elige biblioteca en el modal."""
+        self.current_library_id = library_id
+        self.current_library_name = library_name
+
+        self.title(f"Biblioteca — {library_name}")
+
+        # recomendado: limpiar filtros al cambiar de biblioteca
+        self.current_filters = {}
+
+        self.refresh()
