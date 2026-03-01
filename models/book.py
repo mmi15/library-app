@@ -9,7 +9,7 @@ class Book(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
 
-    library_id = Column(Integer, nullable=False)  # <-- AÑADIDO
+    library_id = Column(Integer, ForeignKey("libraries.id"), nullable=False)  
 
     title = Column(String(255), nullable=False)
     author_id = Column(Integer, ForeignKey('authors.id'))

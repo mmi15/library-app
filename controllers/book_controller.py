@@ -1,5 +1,6 @@
 from database.db_config import SessionLocal
 from sqlalchemy.orm import joinedload
+from models.libraries import Library
 from models.book import Book
 from models.author import Author
 from models.publisher import Publisher
@@ -29,8 +30,9 @@ def _apply_year_range(q, col, vmin, vmax):
 # -------- MAIN LIST (with relationships preloaded) --------
 
 
-def list_books(filters=None):
+def list_books(filters: dict | None = None, library_id: int | None = None):
     filters = filters or {}
+    
     with SessionLocal() as s:
         q = (
             s.query(Book)
@@ -42,6 +44,9 @@ def list_books(filters=None):
                 joinedload(Book.location),
             )
         )
+
+        if library_id is not None:
+            q = q.filter(Book.library_id == library_id)
 
         # --- Filtro por título ---
         if t := filters.get("title"):
@@ -115,22 +120,31 @@ def get_all_themes():
     return _get_all(Theme, "name")
 
 
-def get_all_collections():
-    return _get_all(Collection, "name")
-
-
-def get_all_locations():
+def get_all_collections(library_id: int | None = None):
     s = SessionLocal()
     try:
+        q = s.query(Collection)
+        if library_id is not None:
+            q = q.filter(Collection.library_id == library_id)
+        return q.order_by(Collection.name.asc()).all()
+    finally:
+        s.close()
+
+
+def get_all_locations(library_id: int | None = None):
+    s = SessionLocal()
+    try:
+        q = s.query(Location)
+        if library_id is not None:
+            q = q.filter(Location.library_id == library_id)
+
         return (
-            s.query(Location)
-             .order_by(
-                 Location.place.asc(),
-                 Location.furniture.asc(),
-                 Location.module.asc(),
-                 Location.shelf.asc()
-            )
-            .all()
+            q.order_by(
+                Location.place.asc(),
+                Location.furniture.asc(),
+                Location.module.asc(),
+                Location.shelf.asc()
+            ).all()
         )
     finally:
         s.close()
@@ -139,6 +153,9 @@ def get_all_locations():
 
 
 def create_book(data: dict) -> int:
+    if data.get("library_id") is None:
+        raise ValueError("library_id es obligatorio para crear un libro.")
+    
     """
     data = {
         "title": str,

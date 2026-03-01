@@ -19,6 +19,10 @@ class FilterWindow(ctk.CTkToplevel):
     def __init__(self, master, initial=None, on_apply=None):
         super().__init__(master)
         self._init_ttk_styles()
+
+        # ✅ biblioteca actual (la pone MainWindow)
+        self.library_id = getattr(master, "current_library_id", None)
+
         self.title("Filtros")
         self.geometry("540x520")
         self.resizable(False, False)
@@ -113,11 +117,13 @@ class FilterWindow(ctk.CTkToplevel):
                               lambda e: self._apply_combo_placeholder(self.theme_combo, THEME_PH))
         self._apply_combo_placeholder(self.theme_combo, THEME_PH)
 
-        # ====== Fila 4: Colección ======
+        # ====== Fila 4: Colección (✅ filtrada por biblioteca) ======
         ctk.CTkLabel(form, text="Colección").grid(
             row=4, column=0, sticky="w", padx=(0, 10), pady=6)
-        collection_values = self._unique(
-            [c.name for c in get_all_collections()])
+
+        # ✅ antes: get_all_collections()
+        # ✅ ahora: get_all_collections(self.library_id)
+        collection_values = self._unique([c.name for c in get_all_collections(self.library_id)])
         collection_values = [COLLECTION_PH] + collection_values
         self.collection_var = ctk.StringVar(
             value=initial.get("collection_name") or COLLECTION_PH)
@@ -140,11 +146,9 @@ class FilterWindow(ctk.CTkToplevel):
             row=5, column=0, sticky="w", padx=(0, 10), pady=(12, 6))
         self.pub_year_min = ctk.CTkEntry(form, width=90)
         self.pub_year_min.grid(row=5, column=1, sticky="w", pady=(12, 6))
-        ctk.CTkLabel(form, text="-").grid(row=5,
-                                          column=1, padx=(100, 0), sticky="w")
+        ctk.CTkLabel(form, text="-").grid(row=5, column=1, padx=(100, 0), sticky="w")
         self.pub_year_max = ctk.CTkEntry(form, width=90)
-        self.pub_year_max.grid(row=5, column=1, padx=(
-            120, 0), sticky="w", pady=(12, 6))
+        self.pub_year_max.grid(row=5, column=1, padx=(120, 0), sticky="w", pady=(12, 6))
         if initial.get("pub_year_min") not in (None, ""):
             self.pub_year_min.insert(0, str(initial["pub_year_min"]))
         if initial.get("pub_year_max") not in (None, ""):
@@ -154,11 +158,9 @@ class FilterWindow(ctk.CTkToplevel):
             row=6, column=0, sticky="w", padx=(0, 10), pady=6)
         self.edi_year_min = ctk.CTkEntry(form, width=90)
         self.edi_year_min.grid(row=6, column=1, sticky="w", pady=6)
-        ctk.CTkLabel(form, text="-").grid(row=6,
-                                          column=1, padx=(100, 0), sticky="w")
+        ctk.CTkLabel(form, text="-").grid(row=6, column=1, padx=(100, 0), sticky="w")
         self.edi_year_max = ctk.CTkEntry(form, width=90)
-        self.edi_year_max.grid(
-            row=6, column=1, padx=(120, 0), sticky="w", pady=6)
+        self.edi_year_max.grid(row=6, column=1, padx=(120, 0), sticky="w", pady=6)
         if initial.get("edi_year_min") not in (None, ""):
             self.edi_year_min.insert(0, str(initial["edi_year_min"]))
         if initial.get("edi_year_max") not in (None, ""):
@@ -170,7 +172,6 @@ class FilterWindow(ctk.CTkToplevel):
         loc = ctk.CTkFrame(form)
         loc.grid(row=7, column=1, sticky="ew", pady=(12, 6))
 
-        # cada columna se reparte el espacio
         for i in range(4):
             loc.grid_columnconfigure(i, weight=1)
 
@@ -186,22 +187,20 @@ class FilterWindow(ctk.CTkToplevel):
         self.shelf = ctk.CTkEntry(loc, placeholder_text="Balda")
         self.shelf.grid(row=0, column=3, sticky="ew")
 
+        # (Si quisieras cargar initial también aquí, lo puedes hacer, pero no lo toco)
+
         # --- Botones: Limpiar | Aceptar | Cancelar ---
         btns = ctk.CTkFrame(self)
         btns.pack(fill="x", padx=16, pady=(0, 16))
-        ctk.CTkButton(btns, text="Limpiar",
-                      command=self._clear).pack(side="left")
-        ctk.CTkButton(btns, text="Cancelar", command=self._cancel).pack(
-            side="right", padx=6)
-        ctk.CTkButton(btns, text="Aceptar",  command=self._apply).pack(
-            side="right", padx=6)
+        ctk.CTkButton(btns, text="Limpiar", command=self._clear).pack(side="left")
+        ctk.CTkButton(btns, text="Cancelar", command=self._cancel).pack(side="right", padx=6)
+        ctk.CTkButton(btns, text="Aceptar", command=self._apply).pack(side="right", padx=6)
 
         # shortcuts
         self.bind("<Return>", lambda e: self._apply())
         self.bind("<Escape>", lambda e: self._cancel())
 
         self.after(0, self._center_over_master)
-        # focus
         self.fields["title"].focus_set()
 
     # ----------------- helpers -----------------
@@ -247,14 +246,10 @@ class FilterWindow(ctk.CTkToplevel):
         try:
             self.update_idletasks()
             m = self.master
-            # tamaño del padre (si está maximizado también funciona)
             mw, mh = m.winfo_width(), m.winfo_height()
             mx, my = m.winfo_rootx(), m.winfo_rooty()
-
-            # tamaño del propio modal
             ww, wh = self.winfo_width(), self.winfo_height()
 
-            # si el padre aún no tiene tamaño real, usar pantalla
             if mw <= 1 or mh <= 1:
                 sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
                 x = (sw - ww) // 2
@@ -265,7 +260,6 @@ class FilterWindow(ctk.CTkToplevel):
 
             self.geometry(f"+{x}+{y}")
         except Exception:
-            # último recurso: centrado en pantalla
             sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
             ww, wh = self.winfo_width(), self.winfo_height()
             x = (sw - ww) // 2
@@ -277,14 +271,13 @@ class FilterWindow(ctk.CTkToplevel):
         self.destroy()
 
     def _clear(self):
-        # textos libres
         for e in self.fields.values():
             e.delete(0, "end")
-        # numéricos y ubicación
+
         for e in (self.pub_year_min, self.pub_year_max, self.edi_year_min, self.edi_year_max,
                   self.place, self.furniture, self.module, self.shelf):
             e.delete(0, "end")
-        # combos -> volver a sentinela
+
         self.author_combo.set(AUTHOR_PH)
         self.publisher_combo.set(PUBLISHER_PH)
         self.theme_combo.set(THEME_PH)
@@ -293,7 +286,6 @@ class FilterWindow(ctk.CTkToplevel):
     def _apply(self):
         filters = {}
 
-        # Entradas de texto
         title = self._get_text(self.fields["title"])
         if title:
             filters["title"] = title
@@ -314,7 +306,6 @@ class FilterWindow(ctk.CTkToplevel):
         if shelf is not None:
             filters["shelf"] = shelf
 
-        # Rangos
         pub_min = self._parse_int(self.pub_year_min)
         if pub_min is not None:
             filters["pub_year_min"] = pub_min
@@ -331,13 +322,11 @@ class FilterWindow(ctk.CTkToplevel):
         if edi_max is not None:
             filters["edi_year_max"] = edi_max
 
-        # Combos (normalizados contra su placeholder)
         author = self._normalize_combo(self.author_var.get(), AUTHOR_PH)
         if author:
             filters["author_name"] = author
 
-        publisher = self._normalize_combo(
-            self.publisher_var.get(), PUBLISHER_PH)
+        publisher = self._normalize_combo(self.publisher_var.get(), PUBLISHER_PH)
         if publisher:
             filters["publisher_name"] = publisher
 
@@ -345,8 +334,7 @@ class FilterWindow(ctk.CTkToplevel):
         if theme:
             filters["theme_name"] = theme
 
-        collection = self._normalize_combo(
-            self.collection_var.get(), COLLECTION_PH)
+        collection = self._normalize_combo(self.collection_var.get(), COLLECTION_PH)
         if collection:
             filters["collection_name"] = collection
 
@@ -355,8 +343,7 @@ class FilterWindow(ctk.CTkToplevel):
         self.destroy()
 
     def _init_ttk_styles(self):
-        style = ttk.Style(self)  # NO cambiamos el tema global
-        # estilo base para combobox (texto oscuro)
+        style = ttk.Style(self)
         style.configure(
             "Dark.TCombobox",
             foreground="#111111",
@@ -371,7 +358,6 @@ class FilterWindow(ctk.CTkToplevel):
             fieldbackground=[("readonly", "#ffffff")],
             background=[("readonly", "#ffffff")],
         )
-        # estilo placeholder (gris)
         style.configure(
             "Placeholder.TCombobox",
             foreground="#6b7280",
@@ -383,5 +369,4 @@ class FilterWindow(ctk.CTkToplevel):
 
     def _apply_combo_placeholder(self, combo: ttk.Combobox, placeholder: str):
         val = combo.get()
-        combo.configure(style="Placeholder.TCombobox" if val ==
-                        placeholder else "Dark.TCombobox")
+        combo.configure(style="Placeholder.TCombobox" if val == placeholder else "Dark.TCombobox")

@@ -39,6 +39,21 @@ class FormBook(ctk.CTkToplevel):
         self.grab_set()
         self.focus()
 
+        def _resolve_library_id(widget):
+            w = widget
+            while w is not None:
+                if hasattr(w, "current_library_id"):
+                    return getattr(w, "current_library_id")
+                w = getattr(w, "master", None)
+            return None
+
+        self.library_id = _resolve_library_id(master)
+
+        if self.library_id is None:
+            messagebox.showerror("Error", "No hay biblioteca seleccionada (library_id).")
+            self.destroy()
+            return
+
         # === Datos para combos ===
         self.authors = get_all_authors()
         self.pubs = get_all_publishers()
@@ -73,19 +88,26 @@ class FormBook(ctk.CTkToplevel):
         r += 1
 
         # Autor
+        ctk.CTkLabel(form, text="Autor").grid(
+            row=r, column=0, sticky="w", padx=(0, 10), pady=6
+        )
+
         self.cb_autor = ttk.Combobox(
             form,
             values=list(self.map_author.keys()),
             state="readonly",
-            height=10,                  # hace aparecer la barra cuando hay más de 10
-            # aplica estilo SOLO al combobox (no a la tabla)
+            height=10,
             style="Dark.TCombobox",
         )
         self.cb_autor.set(AUTHOR_PH)
         self.cb_autor.grid(row=r, column=1, sticky="ew", pady=6)
-        self.cb_autor.bind("<<ComboboxSelected>>",
-                           lambda e: self._apply_combo_placeholder(self.cb_autor, AUTHOR_PH))
-        self._apply_combo_placeholder(self.cb_autor, AUTHOR_PH)
+        self.cb_autor.bind(
+            "<<ComboboxSelected>>",
+            lambda e: self._ttk_combo_apply_placeholder(self.cb_autor, AUTHOR_PH)
+        )
+        self._ttk_combo_apply_placeholder(self.cb_autor, AUTHOR_PH)
+
+        r += 1
 
         # Editorial
         ctk.CTkLabel(form, text="Editorial").grid(
@@ -297,6 +319,7 @@ class FormBook(ctk.CTkToplevel):
             return
 
         data = {
+            "library_id": self.library_id,
             "title": title,
             "author_id":     self.map_author.get(self.cb_autor.get()),
             "publisher_id":  self.map_pub.get(self.cb_pub.get()),

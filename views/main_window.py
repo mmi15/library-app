@@ -90,6 +90,7 @@ class MainWindow(ctk.CTk):
         ctk.CTkButton(btns, text="Refrescar", command=self.refresh).pack(side="right", padx=6)
         ctk.CTkButton(btns, text="Filtros", command=self.open_filters).pack(side="right", padx=6)
         ctk.CTkButton(btns, text="Préstamos", command=self.open_loans).pack(side="right", padx=6)
+        ctk.CTkButton(btns, text="Menú bibliotecas", command=self.open_library_menu).pack(side="right", padx=6)
 
         # Ahora sí: ya hay biblioteca seleccionada, refrescamos
         self.refresh()
@@ -155,7 +156,7 @@ class MainWindow(ctk.CTk):
 
     # ----- filters -----
     def open_filters(self):
-        FilterWindow(self, initial=self.current_filters, on_apply=self.apply_filters)
+        FilterWindow(self, initial=self.current_filters, on_apply=self.apply_filters, )
 
     def apply_filters(self, new_filters: dict):
         self.current_filters = new_filters
@@ -169,7 +170,7 @@ class MainWindow(ctk.CTk):
         from views.form_book import FormBook
         # Ideal: pasar library_id al formulario para que cree book con esa biblioteca
         try:
-            FormBook(self, on_saved=self.refresh, library_id=self.current_library_id)
+            FormBook(self, on_saved=self.refresh)
         except TypeError:
             FormBook(self, on_saved=self.refresh)
 
@@ -331,3 +332,32 @@ class MainWindow(ctk.CTk):
     def open_loans(self):
         from views.loans_window import LoansWindow
         LoansWindow(self)
+
+    def open_library_menu(self):
+        from views.library_select_modal import LibrarySelectModal
+
+        if getattr(self, "_library_modal_open", False):
+            return
+        self._library_modal_open = True
+
+        def _selected(lib_id, lib_name):
+            self._library_modal_open = False
+            self._on_library_selected(lib_id, lib_name)
+
+        # Si el usuario pulsa "Salir", parent.destroy() cierra la app, así que no hace falta reset.
+        LibrarySelectModal(self, on_selected=_selected)
+
+    def _on_library_selected(self, library_id: int, library_name: str):
+        """Callback cuando el usuario elige biblioteca en el modal."""
+        # Actualizar contexto
+        self.current_library_id = library_id
+        self.current_library_name = library_name
+
+        # Actualizar título
+        self.title(f"Biblioteca — {library_name}")
+
+        # Recomendado: limpiar filtros al cambiar de biblioteca
+        self.current_filters = {}
+
+        # Refrescar tabla con la nueva biblioteca
+        self.refresh()
