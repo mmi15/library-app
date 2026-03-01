@@ -331,7 +331,7 @@ class MainWindow(ctk.CTk):
 
     def open_loans(self):
         from views.loans_window import LoansWindow
-        LoansWindow(self)
+        LoansWindow(self, library_id=self.current_library_id)
 
     def open_library_menu(self):
         from views.library_select_modal import LibrarySelectModal
