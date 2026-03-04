@@ -18,9 +18,10 @@ COLLECTION_PH = "— Colección —"
 class FilterWindow(ctk.CTkToplevel):
     def __init__(self, master, initial=None, on_apply=None):
         super().__init__(master)
+        self.withdraw() 
         self._init_ttk_styles()
 
-        # ✅ biblioteca actual (la pone MainWindow)
+        # biblioteca actual (la pone MainWindow)
         self.library_id = getattr(master, "current_library_id", None)
 
         self.title("Filtros")
@@ -200,7 +201,9 @@ class FilterWindow(ctk.CTkToplevel):
         self.bind("<Return>", lambda e: self._apply())
         self.bind("<Escape>", lambda e: self._cancel())
 
-        self.after(0, self._center_over_master)
+        self.update_idletasks()
+        self._center_over_master()
+        self.deiconify()  
         self.fields["title"].focus_set()
 
     # ----------------- helpers -----------------
