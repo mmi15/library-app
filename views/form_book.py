@@ -59,7 +59,11 @@ class FormBook(ctk.CTkToplevel):
         self.pubs = get_all_publishers()
         self.thms = get_all_themes()
         self.colls = get_all_collections()
-        self.locs = get_all_locations()
+        
+        try:
+            self.locs = get_all_locations(self.library_id)
+        except TypeError:
+            self.locs = get_all_locations()
 
         # Mapas nombre->id (con placeholder->None)
         def map_items(items): return {i.name: i.id for i in items}

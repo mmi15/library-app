@@ -134,18 +134,10 @@ def get_all_collections(library_id: int | None = None):
 def get_all_locations(library_id: int | None = None):
     s = SessionLocal()
     try:
-        q = s.query(Location)
+        q = s.query(Location).order_by(Location.id.asc())
         if library_id is not None:
             q = q.filter(Location.library_id == library_id)
-
-        return (
-            q.order_by(
-                Location.place.asc(),
-                Location.furniture.asc(),
-                Location.module.asc(),
-                Location.shelf.asc()
-            ).all()
-        )
+        return q.all()
     finally:
         s.close()
 
