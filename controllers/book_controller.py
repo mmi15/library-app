@@ -242,3 +242,161 @@ def _apply_year_exact_or_range(q, col, vmin, vmax):
         return q.filter(col == vmax)
     # 3) Ninguno: sin filtro
     return q
+
+# -------- CREATE: helpers for "+" modals --------
+
+def _norm(s: str | None) -> str:
+    return (s or "").strip()
+
+
+def create_author(name: str) -> int:
+    name = _norm(name)
+    if not name:
+        raise ValueError("El nombre del autor es obligatorio.")
+
+    s = SessionLocal()
+    try:
+        exists = s.query(Author).filter(Author.name.ilike(name)).first()
+        if exists:
+            return exists.id
+
+        obj = Author(name=name)
+        s.add(obj)
+        s.commit()
+        s.refresh(obj)
+        return obj.id
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def create_publisher(name: str) -> int:
+    name = _norm(name)
+    if not name:
+        raise ValueError("El nombre de la editorial es obligatorio.")
+
+    s = SessionLocal()
+    try:
+        exists = s.query(Publisher).filter(Publisher.name.ilike(name)).first()
+        if exists:
+            return exists.id
+
+        obj = Publisher(name=name)
+        s.add(obj)
+        s.commit()
+        s.refresh(obj)
+        return obj.id
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def create_theme(name: str) -> int:
+    name = _norm(name)
+    if not name:
+        raise ValueError("El nombre del tema es obligatorio.")
+
+    s = SessionLocal()
+    try:
+        exists = s.query(Theme).filter(Theme.name.ilike(name)).first()
+        if exists:
+            return exists.id
+
+        obj = Theme(name=name)
+        s.add(obj)
+        s.commit()
+        s.refresh(obj)
+        return obj.id
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+
+def create_collection(name: str, library_id: int) -> int:
+    name = (name or "").strip()
+    if not name:
+        raise ValueError("El nombre de la colección es obligatorio.")
+    if not library_id:
+        raise ValueError("library_id es obligatorio para crear una colección.")
+
+    s = SessionLocal()
+    try:
+        # Evita duplicados dentro de la misma biblioteca
+        exists = (
+            s.query(Collection)
+            .filter(Collection.library_id == library_id)
+            .filter(Collection.name.ilike(name))
+            .first()
+        )
+        if exists:
+            return exists.id
+
+        obj = Collection(name=name, library_id=library_id)
+        s.add(obj)
+        s.commit()
+        s.refresh(obj)
+        return obj.id
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
+
+def create_location(
+    *, place: str, furniture: str,
+    module: str | None = None, shelf: str | None = None,
+    library_id: int
+) -> int:
+    place = (place or "").strip()
+    furniture = (furniture or "").strip()
+    module = (module or "").strip() or None
+    shelf = (shelf or "").strip() or None
+
+    if not place or not furniture:
+        raise ValueError("Lugar y mueble son obligatorios.")
+    if not library_id:
+        raise ValueError("library_id es obligatorio para crear una ubicación.")
+
+    s = SessionLocal()
+    try:
+        # Evitar duplicados dentro de la misma biblioteca (misma combinación)
+        q = s.query(Location).filter(Location.library_id == library_id)
+        q = q.filter(Location.place.ilike(place))
+        q = q.filter(Location.furniture.ilike(furniture))
+
+        if module is None:
+            q = q.filter(Location.module.is_(None))
+        else:
+            q = q.filter(Location.module.ilike(module))
+
+        if shelf is None:
+            q = q.filter(Location.shelf.is_(None))
+        else:
+            q = q.filter(Location.shelf.ilike(shelf))
+
+        exists = q.first()
+        if exists:
+            return exists.id
+
+        obj = Location(
+            library_id=library_id,
+            place=place,
+            furniture=furniture,
+            module=module,
+            shelf=shelf,
+        )
+        s.add(obj)
+        s.commit()
+        s.refresh(obj)
+        return obj.id
+    except Exception:
+        s.rollback()
+        raise
+    finally:
+        s.close()
