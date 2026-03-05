@@ -1,5 +1,6 @@
 # views/filter_window.py
 import customtkinter as ctk
+import tkinter as tk
 from controllers.book_controller import (
     get_all_authors,
     get_all_publishers,
@@ -14,13 +15,98 @@ PUBLISHER_PH = "— Editorial —"
 THEME_PH = "— Tema —"
 COLLECTION_PH = "— Colección —"
 
+class SearchSelectModal(ctk.CTkToplevel):
+    """Modal genérico para buscar y seleccionar un item: items=[(id,label), ...]."""
+    def __init__(self, master, title: str, items, on_selected=None):
+        super().__init__(master)
+        self.withdraw()
+
+        self.title(title)
+        self.geometry("560x520")
+        self.resizable(False, False)
+        self.transient(master)
+        self.grab_set()
+        self.focus()
+
+        self.on_selected = on_selected
+        self.items_all = list(items)
+        self.items_view = self.items_all[:]
+
+        frame = ctk.CTkFrame(self)
+        frame.pack(fill="both", expand=True, padx=16, pady=16)
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_rowconfigure(2, weight=1)
+
+        ctk.CTkLabel(frame, text="Buscar").grid(row=0, column=0, sticky="w")
+        self.search = ctk.CTkEntry(frame, placeholder_text="Escribe para filtrar…")
+        self.search.grid(row=1, column=0, sticky="ew", pady=(6, 12))
+        self.search.focus_set()
+
+        self.listbox = tk.Listbox(frame, height=18)
+        self.listbox.grid(row=2, column=0, sticky="nsew")
+        self.listbox.bind("<Double-Button-1>", lambda e: self._accept())
+        self.listbox.bind("<Return>", lambda e: self._accept())
+
+        btns = ctk.CTkFrame(frame, fg_color="transparent")
+        btns.grid(row=3, column=0, sticky="e", pady=(12, 0))
+        ctk.CTkButton(btns, text="Cancelar", width=120, command=self._cancel).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(btns, text="Seleccionar", width=140, command=self._accept).pack(side="left")
+
+        self.search.bind("<KeyRelease>", self._filter)
+        self.bind("<Escape>", lambda e: self._cancel())
+
+        self._render_list()
+
+        self.update_idletasks()
+        self._center_over_master()
+        self.deiconify()
+
+    def _center_over_master(self):
+        try:
+            self.update_idletasks()
+            m = self.master
+            x = m.winfo_rootx() + (m.winfo_width() // 2) - (self.winfo_width() // 2)
+            y = m.winfo_rooty() + (m.winfo_height() // 2) - (self.winfo_height() // 2)
+            self.geometry(f"+{x}+{y}")
+        except Exception:
+            pass
+
+    def _render_list(self):
+        self.listbox.delete(0, "end")
+        for _id, label in self.items_view:
+            self.listbox.insert("end", label)
+        if self.items_view:
+            self.listbox.selection_set(0)
+            self.listbox.activate(0)
+
+    def _filter(self, _e=None):
+        q = (self.search.get() or "").strip().lower()
+        if not q:
+            self.items_view = self.items_all[:]
+        else:
+            self.items_view = [(i, t) for (i, t) in self.items_all if q in (t or "").lower()]
+        self._render_list()
+
+    def _cancel(self):
+        self.destroy()
+
+    def _accept(self):
+        sel = self.listbox.curselection()
+        if not sel:
+            return
+        idx = sel[0]
+        _id, label = self.items_view[idx]
+        if callable(self.on_selected):
+            self.on_selected(_id, label)
+        self.destroy()
 
 class FilterWindow(ctk.CTkToplevel):
     def __init__(self, master, initial=None, on_apply=None):
         super().__init__(master)
+        self.withdraw() 
         self._init_ttk_styles()
 
-        # ✅ biblioteca actual (la pone MainWindow)
+        # biblioteca actual (la pone MainWindow)
         self.library_id = getattr(master, "current_library_id", None)
 
         self.title("Filtros")
@@ -40,6 +126,7 @@ class FilterWindow(ctk.CTkToplevel):
 
         form.grid_columnconfigure(0, weight=0)
         form.grid_columnconfigure(1, weight=1)
+        form.grid_columnconfigure(2, weight=0)
 
         # ---- helper para entries de texto libre ----
         def add_entry(row, label, key, width=260):
@@ -55,33 +142,45 @@ class FilterWindow(ctk.CTkToplevel):
         add_entry(0, "Título", "title")
 
         # ====== Fila 1: Autor ======
-        ctk.CTkLabel(form, text="Autor").grid(
-            row=1, column=0, sticky="w", padx=(0, 10), pady=6)
-        author_values = self._unique([a.name for a in get_all_authors()])
+        ctk.CTkLabel(form, text="Autor").grid(row=1, column=0, sticky="w", padx=(0, 10), pady=6)
+
+        self.authors = get_all_authors()
+        author_values = self._unique([a.name for a in self.authors])
         author_values = [AUTHOR_PH] + author_values
-        self.author_var = ctk.StringVar(
-            value=initial.get("author_name") or AUTHOR_PH)
+
+        self.author_var = ctk.StringVar(value=initial.get("author_name") or AUTHOR_PH)
 
         self.author_combo = ttk.Combobox(
             form,
             values=author_values,
-            textvariable=self.author_var,   # <- ttk usa textvariable
+            textvariable=self.author_var,
             state="readonly",
-            height=10,                      # <- scroll en el desplegable
+            height=10,
             style="Dark.TCombobox",
         )
         self.author_combo.grid(row=1, column=1, sticky="ew", pady=6)
         self.author_combo.bind("<<ComboboxSelected>>",
-                               lambda e: self._apply_combo_placeholder(self.author_combo, AUTHOR_PH))
+                            lambda e: self._apply_combo_placeholder(self.author_combo, AUTHOR_PH))
         self._apply_combo_placeholder(self.author_combo, AUTHOR_PH)
 
+        ctk.CTkButton(
+            form, text="🔎", width=36,
+            command=lambda: SearchSelectModal(
+                self,
+                "Buscar autor",
+                items=[(a.id, a.name) for a in self.authors],
+                on_selected=lambda _id, label: self._set_combo_text(self.author_combo, AUTHOR_PH, label)
+            )
+        ).grid(row=1, column=2, sticky="e", padx=(10, 0), pady=6)
+
         # ====== Fila 2: Editorial ======
-        ctk.CTkLabel(form, text="Editorial").grid(
-            row=2, column=0, sticky="w", padx=(0, 10), pady=6)
-        publisher_values = self._unique([p.name for p in get_all_publishers()])
+        ctk.CTkLabel(form, text="Editorial").grid(row=2, column=0, sticky="w", padx=(0, 10), pady=6)
+
+        self.publishers = get_all_publishers()
+        publisher_values = self._unique([p.name for p in self.publishers])
         publisher_values = [PUBLISHER_PH] + publisher_values
-        self.publisher_var = ctk.StringVar(
-            value=initial.get("publisher_name") or PUBLISHER_PH)
+
+        self.publisher_var = ctk.StringVar(value=initial.get("publisher_name") or PUBLISHER_PH)
 
         self.publisher_combo = ttk.Combobox(
             form,
@@ -93,16 +192,27 @@ class FilterWindow(ctk.CTkToplevel):
         )
         self.publisher_combo.grid(row=2, column=1, sticky="ew", pady=6)
         self.publisher_combo.bind("<<ComboboxSelected>>",
-                                  lambda e: self._apply_combo_placeholder(self.publisher_combo, PUBLISHER_PH))
+                                lambda e: self._apply_combo_placeholder(self.publisher_combo, PUBLISHER_PH))
         self._apply_combo_placeholder(self.publisher_combo, PUBLISHER_PH)
 
+        ctk.CTkButton(
+            form, text="🔎", width=36,
+            command=lambda: SearchSelectModal(
+                self,
+                "Buscar editorial",
+                items=[(p.id, p.name) for p in self.publishers],
+                on_selected=lambda _id, label: self._set_combo_text(self.publisher_combo, PUBLISHER_PH, label)
+            )
+        ).grid(row=2, column=2, sticky="e", padx=(10, 0), pady=6)
+
         # ====== Fila 3: Tema ======
-        ctk.CTkLabel(form, text="Tema").grid(
-            row=3, column=0, sticky="w", padx=(0, 10), pady=6)
-        theme_values = self._unique([t.name for t in get_all_themes()])
+        ctk.CTkLabel(form, text="Tema").grid(row=3, column=0, sticky="w", padx=(0, 10), pady=6)
+
+        self.themes = get_all_themes()
+        theme_values = self._unique([t.name for t in self.themes])
         theme_values = [THEME_PH] + theme_values
-        self.theme_var = ctk.StringVar(
-            value=initial.get("theme_name") or THEME_PH)
+
+        self.theme_var = ctk.StringVar(value=initial.get("theme_name") or THEME_PH)
 
         self.theme_combo = ttk.Combobox(
             form,
@@ -114,19 +224,27 @@ class FilterWindow(ctk.CTkToplevel):
         )
         self.theme_combo.grid(row=3, column=1, sticky="ew", pady=6)
         self.theme_combo.bind("<<ComboboxSelected>>",
-                              lambda e: self._apply_combo_placeholder(self.theme_combo, THEME_PH))
+                            lambda e: self._apply_combo_placeholder(self.theme_combo, THEME_PH))
         self._apply_combo_placeholder(self.theme_combo, THEME_PH)
 
-        # ====== Fila 4: Colección (✅ filtrada por biblioteca) ======
-        ctk.CTkLabel(form, text="Colección").grid(
-            row=4, column=0, sticky="w", padx=(0, 10), pady=6)
+        ctk.CTkButton(
+            form, text="🔎", width=36,
+            command=lambda: SearchSelectModal(
+                self,
+                "Buscar tema",
+                items=[(t.id, t.name) for t in self.themes],
+                on_selected=lambda _id, label: self._set_combo_text(self.theme_combo, THEME_PH, label)
+            )
+        ).grid(row=3, column=2, sticky="e", padx=(10, 0), pady=6)
 
-        # ✅ antes: get_all_collections()
-        # ✅ ahora: get_all_collections(self.library_id)
-        collection_values = self._unique([c.name for c in get_all_collections(self.library_id)])
+        # ====== Fila 4: Colección (filtrada por biblioteca) ======
+        ctk.CTkLabel(form, text="Colección").grid(row=4, column=0, sticky="w", padx=(0, 10), pady=6)
+
+        self.collections = get_all_collections(self.library_id)
+        collection_values = self._unique([c.name for c in self.collections])
         collection_values = [COLLECTION_PH] + collection_values
-        self.collection_var = ctk.StringVar(
-            value=initial.get("collection_name") or COLLECTION_PH)
+
+        self.collection_var = ctk.StringVar(value=initial.get("collection_name") or COLLECTION_PH)
 
         self.collection_combo = ttk.Combobox(
             form,
@@ -138,8 +256,18 @@ class FilterWindow(ctk.CTkToplevel):
         )
         self.collection_combo.grid(row=4, column=1, sticky="ew", pady=6)
         self.collection_combo.bind("<<ComboboxSelected>>",
-                                   lambda e: self._apply_combo_placeholder(self.collection_combo, COLLECTION_PH))
+                                lambda e: self._apply_combo_placeholder(self.collection_combo, COLLECTION_PH))
         self._apply_combo_placeholder(self.collection_combo, COLLECTION_PH)
+
+        ctk.CTkButton(
+            form, text="🔎", width=36,
+            command=lambda: SearchSelectModal(
+                self,
+                "Buscar colección",
+                items=[(c.id, c.name) for c in self.collections],
+                on_selected=lambda _id, label: self._set_combo_text(self.collection_combo, COLLECTION_PH, label)
+            )
+        ).grid(row=4, column=2, sticky="e", padx=(10, 0), pady=6)
 
         # ====== Fila 5-6: Años (rango) ======
         ctk.CTkLabel(form, text="Año publicación").grid(
@@ -187,8 +315,6 @@ class FilterWindow(ctk.CTkToplevel):
         self.shelf = ctk.CTkEntry(loc, placeholder_text="Balda")
         self.shelf.grid(row=0, column=3, sticky="ew")
 
-        # (Si quisieras cargar initial también aquí, lo puedes hacer, pero no lo toco)
-
         # --- Botones: Limpiar | Aceptar | Cancelar ---
         btns = ctk.CTkFrame(self)
         btns.pack(fill="x", padx=16, pady=(0, 16))
@@ -200,7 +326,9 @@ class FilterWindow(ctk.CTkToplevel):
         self.bind("<Return>", lambda e: self._apply())
         self.bind("<Escape>", lambda e: self._cancel())
 
-        self.after(0, self._center_over_master)
+        self.update_idletasks()
+        self._center_over_master()
+        self.deiconify()  
         self.fields["title"].focus_set()
 
     # ----------------- helpers -----------------
@@ -282,6 +410,11 @@ class FilterWindow(ctk.CTkToplevel):
         self.publisher_combo.set(PUBLISHER_PH)
         self.theme_combo.set(THEME_PH)
         self.collection_combo.set(COLLECTION_PH)
+
+        self._apply_combo_placeholder(self.author_combo, AUTHOR_PH)
+        self._apply_combo_placeholder(self.publisher_combo, PUBLISHER_PH)
+        self._apply_combo_placeholder(self.theme_combo, THEME_PH)
+        self._apply_combo_placeholder(self.collection_combo, COLLECTION_PH)
 
     def _apply(self):
         filters = {}
@@ -370,3 +503,7 @@ class FilterWindow(ctk.CTkToplevel):
     def _apply_combo_placeholder(self, combo: ttk.Combobox, placeholder: str):
         val = combo.get()
         combo.configure(style="Placeholder.TCombobox" if val == placeholder else "Dark.TCombobox")
+
+    def _set_combo_text(self, combo: ttk.Combobox, placeholder: str, text: str):
+        combo.set(text if text else placeholder)
+        self._apply_combo_placeholder(combo, placeholder)
