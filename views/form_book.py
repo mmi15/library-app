@@ -549,7 +549,7 @@ class FormBook(ctk.CTkToplevel):
             self,
             title="Nueva colección",
             label="Nombre",
-            placeholder="Ej: Pendiente de leer",
+            placeholder="Ej: Grandes Aventuras",
             create_fn=create_collection,
             create_kwargs={"library_id": self.library_id},  # ✅ obligatorio
             on_created=lambda new_id: self._refresh_and_select("collection", new_id)
