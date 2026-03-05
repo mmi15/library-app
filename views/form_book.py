@@ -1,14 +1,16 @@
 # views/form_book.py
 import customtkinter as ctk
+import tkinter as tk
 from tkinter import messagebox
+from tkinter import ttk
+
 from controllers.book_controller import (
     get_all_authors, get_all_publishers, get_all_themes, get_all_collections,
     get_all_locations, create_book, update_book, get_book,
 
-    # ✅ AÑADE ESTAS en tu controller (o ajusta nombres aquí):
+    # funciones para los botones "+"
     create_author, create_publisher, create_theme, create_collection, create_location
 )
-from tkinter import ttk
 
 # --- Placeholders (sentinelas) para combos ---
 AUTHOR_PH = "— Autor —"
@@ -17,15 +19,98 @@ THEME_PH = "— Tema —"
 LOCATION_PH = "— Ubicación —"
 COLLECTION_PH = "— Colección —"   # equivale a “ninguna”
 
+class SearchSelectModal(ctk.CTkToplevel):
+    """Modal genérico para buscar y seleccionar un item: items=[(id,label), ...]."""
+    def __init__(self, master, title: str, items, on_selected=None):
+        super().__init__(master)
+        self.withdraw()
+
+        self.title(title)
+        self.geometry("560x520")
+        self.resizable(False, False)
+        self.transient(master)
+        self.grab_set()
+        self.focus()
+
+        self.on_selected = on_selected
+        self.items_all = list(items)
+        self.items_view = self.items_all[:]
+
+        frame = ctk.CTkFrame(self)
+        frame.pack(fill="both", expand=True, padx=16, pady=16)
+        frame.grid_columnconfigure(0, weight=1)
+        frame.grid_rowconfigure(2, weight=1)
+
+        ctk.CTkLabel(frame, text="Buscar").grid(row=0, column=0, sticky="w")
+        self.search = ctk.CTkEntry(frame, placeholder_text="Escribe para filtrar…")
+        self.search.grid(row=1, column=0, sticky="ew", pady=(6, 12))
+        self.search.focus_set()
+
+        self.listbox = tk.Listbox(frame, height=18)
+        self.listbox.grid(row=2, column=0, sticky="nsew")
+        self.listbox.bind("<Double-Button-1>", lambda e: self._accept())
+        self.listbox.bind("<Return>", lambda e: self._accept())
+
+        btns = ctk.CTkFrame(frame, fg_color="transparent")
+        btns.grid(row=3, column=0, sticky="e", pady=(12, 0))
+        ctk.CTkButton(btns, text="Cancelar", width=120, command=self._cancel).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(btns, text="Seleccionar", width=140, command=self._accept).pack(side="left")
+
+        self.search.bind("<KeyRelease>", self._filter)
+        self.bind("<Escape>", lambda e: self._cancel())
+
+        self._render_list()
+
+        self.update_idletasks()
+        self._center_over_master()
+        self.deiconify()
+
+    def _center_over_master(self):
+        try:
+            self.update_idletasks()
+            m = self.master
+            x = m.winfo_rootx() + (m.winfo_width() // 2) - (self.winfo_width() // 2)
+            y = m.winfo_rooty() + (m.winfo_height() // 2) - (self.winfo_height() // 2)
+            self.geometry(f"+{x}+{y}")
+        except Exception:
+            pass
+
+    def _render_list(self):
+        self.listbox.delete(0, "end")
+        for _id, label in self.items_view:
+            self.listbox.insert("end", label)
+        if self.items_view:
+            self.listbox.selection_set(0)
+            self.listbox.activate(0)
+
+    def _filter(self, _e=None):
+        q = (self.search.get() or "").strip().lower()
+        if not q:
+            self.items_view = self.items_all[:]
+        else:
+            self.items_view = [(i, t) for (i, t) in self.items_all if q in (t or "").lower()]
+        self._render_list()
+
+    def _cancel(self):
+        self.destroy()
+
+    def _accept(self):
+        sel = self.listbox.curselection()
+        if not sel:
+            return
+        idx = sel[0]
+        _id, label = self.items_view[idx]
+        if callable(self.on_selected):
+            self.on_selected(_id, label)
+        self.destroy()
 
 class SimpleCreateModal(ctk.CTkToplevel):
-    """
-    Modal genérico para crear entidades simples (solo 1 campo: name).
-    Llama a create_fn(name, **kwargs) y devuelve (obj/id) en on_created.
-    """
+    """Modal genérico para crear entidades simples (solo 1 campo: name)."""
     def __init__(self, master, title: str, label: str, placeholder: str,
                  create_fn, on_created=None, create_kwargs=None):
         super().__init__(master)
+        self.withdraw()
+
         self.title(title)
         self.geometry("420x180")
         self.resizable(False, False)
@@ -54,7 +139,9 @@ class SimpleCreateModal(ctk.CTkToplevel):
         self.bind("<Escape>", lambda e: self._cancel())
         self.bind("<Return>", lambda e: self._save())
 
+        self.update_idletasks()
         self._center_over_master()
+        self.deiconify()
 
     def _center_over_master(self):
         try:
@@ -76,9 +163,9 @@ class SimpleCreateModal(ctk.CTkToplevel):
             return
 
         try:
-            created = self.create_fn(name, **self.create_kwargs)
+            created_id = self.create_fn(name, **self.create_kwargs)
             if callable(self.on_created):
-                self.on_created(created)
+                self.on_created(created_id)
             self.destroy()
         except ValueError as e:
             messagebox.showerror("Error", str(e), parent=self)
@@ -87,12 +174,11 @@ class SimpleCreateModal(ctk.CTkToplevel):
 
 
 class LocationCreateModal(ctk.CTkToplevel):
-    """
-    Modal para crear Ubicación con campos: place, furniture, module, shelf (+ library_id).
-    Ajusta los nombres a lo que use tu modelo/tabla.
-    """
+    """Modal para crear Ubicación con: place, furniture, module, shelf (+ library_id obligatorio)."""
     def __init__(self, master, library_id: int, create_fn, on_created=None):
         super().__init__(master)
+        self.withdraw()
+
         self.title("Nueva ubicación")
         self.geometry("520x260")
         self.resizable(False, False)
@@ -112,15 +198,15 @@ class LocationCreateModal(ctk.CTkToplevel):
         ctk.CTkLabel(frame, text="Lugar").grid(row=0, column=0, sticky="w", pady=(0, 6))
         ctk.CTkLabel(frame, text="Mueble").grid(row=0, column=1, sticky="w", pady=(0, 6))
 
-        self.place = ctk.CTkEntry(frame, placeholder_text="Ej: Salón")
-        self.furniture = ctk.CTkEntry(frame, placeholder_text="Ej: Estantería")
+        self.place = ctk.CTkEntry(frame, placeholder_text="Ej: Despacho")
+        self.furniture = ctk.CTkEntry(frame, placeholder_text="Ej: Librería")
         self.place.grid(row=1, column=0, sticky="ew", padx=(0, 10))
         self.furniture.grid(row=1, column=1, sticky="ew")
 
         ctk.CTkLabel(frame, text="Módulo (opcional)").grid(row=2, column=0, sticky="w", pady=(10, 6))
         ctk.CTkLabel(frame, text="Balda (opcional)").grid(row=2, column=1, sticky="w", pady=(10, 6))
 
-        self.module = ctk.CTkEntry(frame, placeholder_text="Ej: 2")
+        self.module = ctk.CTkEntry(frame, placeholder_text="Ej: 1")
         self.shelf = ctk.CTkEntry(frame, placeholder_text="Ej: 4")
         self.module.grid(row=3, column=0, sticky="ew", padx=(0, 10))
         self.shelf.grid(row=3, column=1, sticky="ew")
@@ -134,7 +220,9 @@ class LocationCreateModal(ctk.CTkToplevel):
         self.bind("<Escape>", lambda e: self._cancel())
         self.bind("<Return>", lambda e: self._save())
 
+        self.update_idletasks()
         self._center_over_master()
+        self.deiconify()
 
     def _center_over_master(self):
         try:
@@ -160,7 +248,7 @@ class LocationCreateModal(ctk.CTkToplevel):
             return
 
         try:
-            created = self.create_fn(
+            created_id = self.create_fn(
                 place=place,
                 furniture=furniture,
                 module=module,
@@ -168,7 +256,7 @@ class LocationCreateModal(ctk.CTkToplevel):
                 library_id=self.library_id
             )
             if callable(self.on_created):
-                self.on_created(created)
+                self.on_created(created_id)
             self.destroy()
         except ValueError as e:
             messagebox.showerror("Error", str(e), parent=self)
@@ -186,8 +274,11 @@ class FormBook(ctk.CTkToplevel):
 
     def __init__(self, master, on_saved=None, mode="create", book=None, book_id=None):
         super().__init__(master)
+        self.withdraw()  # ✅ evita el salto al centrar
+
         self._init_ttk_styles()
         self._setup_ttk_styles()
+
         self.on_saved = on_saved
         self.mode = mode
         self.book = book or (get_book(book_id) if (mode == "edit" and book_id) else None)
@@ -208,7 +299,6 @@ class FormBook(ctk.CTkToplevel):
             return None
 
         self.library_id = _resolve_library_id(master)
-
         if self.library_id is None:
             messagebox.showerror("Error", "No hay biblioteca seleccionada (library_id).")
             self.destroy()
@@ -217,7 +307,7 @@ class FormBook(ctk.CTkToplevel):
         # === Datos para combos ===
         self._reload_combo_data()
 
-        # === LAYOUT: grid con etiquetas a la izquierda ===
+        # === LAYOUT ===
         form = ctk.CTkFrame(self)
         form.pack(fill="both", expand=True, padx=16, pady=16)
         form.grid_columnconfigure(0, weight=0)  # label
@@ -231,69 +321,113 @@ class FormBook(ctk.CTkToplevel):
         self.title_entry.grid(row=r, column=1, columnspan=2, sticky="ew", pady=(4, 6))
         r += 1
 
-        # Autor + botón
+        # Autor
         ctk.CTkLabel(form, text="Autor").grid(row=r, column=0, sticky="w", padx=(0, 10), pady=6)
+
         self.cb_autor = ttk.Combobox(
-            form, values=list(self.map_author.keys()), state="readonly", height=10, style="Dark.TCombobox"
+            form,
+            values=list(self.map_author.keys()),
+            state="readonly",          # ✅ vuelve a readonly (evita valores inválidos)
+            height=10,
+            style="Dark.TCombobox",
         )
         self.cb_autor.set(AUTHOR_PH)
         self.cb_autor.grid(row=r, column=1, sticky="ew", pady=6)
-        self.cb_autor.bind("<<ComboboxSelected>>", lambda e: self._ttk_combo_apply_placeholder(self.cb_autor, AUTHOR_PH))
         self._ttk_combo_apply_placeholder(self.cb_autor, AUTHOR_PH)
 
-        ctk.CTkButton(form, text="+", width=36, command=self._add_author).grid(row=r, column=2, sticky="e", padx=(10, 0), pady=6)
+        btns = ctk.CTkFrame(form, fg_color="transparent")
+        btns.grid(row=r, column=2, sticky="e", padx=(10, 0), pady=6)
+        ctk.CTkButton(btns, text="🔎", width=36, command=self._search_author).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(btns, text="+",  width=36, command=self._add_author).pack(side="left")
+
         r += 1
 
-        # Editorial + botón
+
+        # Editorial
         ctk.CTkLabel(form, text="Editorial").grid(row=r, column=0, sticky="w", padx=(0, 10), pady=6)
+
         self.cb_pub = ttk.Combobox(
-            form, values=list(self.map_pub.keys()), state="readonly", height=10, style="Dark.TCombobox"
+            form,
+            values=list(self.map_pub.keys()),
+            state="readonly",
+            height=10,
+            style="Dark.TCombobox"
         )
         self.cb_pub.set(PUBLISHER_PH)
         self.cb_pub.grid(row=r, column=1, sticky="ew", pady=6)
-        self.cb_pub.bind("<<ComboboxSelected>>", lambda e: self._ttk_combo_apply_placeholder(self.cb_pub, PUBLISHER_PH))
         self._ttk_combo_apply_placeholder(self.cb_pub, PUBLISHER_PH)
 
-        ctk.CTkButton(form, text="+", width=36, command=self._add_publisher).grid(row=r, column=2, sticky="e", padx=(10, 0), pady=6)
+        btns = ctk.CTkFrame(form, fg_color="transparent")
+        btns.grid(row=r, column=2, sticky="e", padx=(10, 0), pady=6)
+        ctk.CTkButton(btns, text="🔎", width=36, command=self._search_publisher).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(btns, text="+",  width=36, command=self._add_publisher).pack(side="left")
+
         r += 1
 
-        # Tema + botón
+
+        # Tema
         ctk.CTkLabel(form, text="Tema").grid(row=r, column=0, sticky="w", padx=(0, 10), pady=6)
+
         self.cb_thm = ttk.Combobox(
-            form, values=list(self.map_thm.keys()), state="readonly", height=10, style="Dark.TCombobox"
+            form,
+            values=list(self.map_thm.keys()),
+            state="readonly",
+            height=10,
+            style="Dark.TCombobox"
         )
         self.cb_thm.set(THEME_PH)
         self.cb_thm.grid(row=r, column=1, sticky="ew", pady=6)
-        self.cb_thm.bind("<<ComboboxSelected>>", lambda e: self._ttk_combo_apply_placeholder(self.cb_thm, THEME_PH))
         self._ttk_combo_apply_placeholder(self.cb_thm, THEME_PH)
 
-        ctk.CTkButton(form, text="+", width=36, command=self._add_theme).grid(row=r, column=2, sticky="e", padx=(10, 0), pady=6)
+        btns = ctk.CTkFrame(form, fg_color="transparent")
+        btns.grid(row=r, column=2, sticky="e", padx=(10, 0), pady=6)
+        ctk.CTkButton(btns, text="🔎", width=36, command=self._search_theme).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(btns, text="+",  width=36, command=self._add_theme).pack(side="left")
+
         r += 1
 
-        # Ubicación + botón
+
+        # Ubicación
         ctk.CTkLabel(form, text="Ubicación").grid(row=r, column=0, sticky="w", padx=(0, 10), pady=6)
+
         self.cb_loc = ttk.Combobox(
-            form, values=list(self.map_loc.keys()), state="readonly", height=10, style="Dark.TCombobox"
+            form,
+            values=list(self.map_loc.keys()),
+            state="readonly",
+            height=10,
+            style="Dark.TCombobox"
         )
         self.cb_loc.set(LOCATION_PH)
         self.cb_loc.grid(row=r, column=1, sticky="ew", pady=6)
-        self.cb_loc.bind("<<ComboboxSelected>>", lambda e: self._ttk_combo_apply_placeholder(self.cb_loc, LOCATION_PH))
         self._ttk_combo_apply_placeholder(self.cb_loc, LOCATION_PH)
 
-        ctk.CTkButton(form, text="+", width=36, command=self._add_location).grid(row=r, column=2, sticky="e", padx=(10, 0), pady=6)
+        btns = ctk.CTkFrame(form, fg_color="transparent")
+        btns.grid(row=r, column=2, sticky="e", padx=(10, 0), pady=6)
+        ctk.CTkButton(btns, text="🔎", width=36, command=self._search_location).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(btns, text="+",  width=36, command=self._add_location).pack(side="left")
+
         r += 1
 
-        # Colección + botón
+
+        # Colección
         ctk.CTkLabel(form, text="Colección").grid(row=r, column=0, sticky="w", padx=(0, 10), pady=6)
+
         self.cb_coll = ttk.Combobox(
-            form, values=list(self.map_coll.keys()), state="readonly", height=10, style="Dark.TCombobox"
+            form,
+            values=list(self.map_coll.keys()),
+            state="readonly",
+            height=10,
+            style="Dark.TCombobox"
         )
         self.cb_coll.set(COLLECTION_PH)
         self.cb_coll.grid(row=r, column=1, sticky="ew", pady=6)
-        self.cb_coll.bind("<<ComboboxSelected>>", lambda e: self._ttk_combo_apply_placeholder(self.cb_coll, COLLECTION_PH))
         self._ttk_combo_apply_placeholder(self.cb_coll, COLLECTION_PH)
 
-        ctk.CTkButton(form, text="+", width=36, command=self._add_collection).grid(row=r, column=2, sticky="e", padx=(10, 0), pady=6)
+        btns = ctk.CTkFrame(form, fg_color="transparent")
+        btns.grid(row=r, column=2, sticky="e", padx=(10, 0), pady=6)
+        ctk.CTkButton(btns, text="🔎", width=36, command=self._search_collection).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(btns, text="+",  width=36, command=self._add_collection).pack(side="left")
+
         r += 1
 
         # Año publicación
@@ -317,25 +451,21 @@ class FormBook(ctk.CTkToplevel):
         if self.mode == "edit" and self.book:
             self._prefill_from_book()
 
+        # ✅ centrar sin salto
+        self.update_idletasks()
         self._center_over_master()
+        self.deiconify()
+
         self.title_entry.focus_set()
 
-    # ---------- Recarga combos ----------
+    # ---------- Combos: datos / refresh ----------
     def _reload_combo_data(self):
         self.authors = get_all_authors()
         self.pubs = get_all_publishers()
         self.thms = get_all_themes()
 
-        # Colecciones: si en tu proyecto deben ser por library, intenta con library_id
-        try:
-            self.colls = get_all_collections(self.library_id)
-        except TypeError:
-            self.colls = get_all_collections()
-
-        try:
-            self.locs = get_all_locations(self.library_id)
-        except TypeError:
-            self.locs = get_all_locations()
+        self.colls = get_all_collections(self.library_id)
+        self.locs = get_all_locations(self.library_id)
 
         def map_items(items):
             return {i.name: i.id for i in items}
@@ -349,107 +479,148 @@ class FormBook(ctk.CTkToplevel):
         self.map_loc = {LOCATION_PH: None, **{t: l.id for t, l in zip(loc_texts, self.locs)}}
 
     def _refresh_and_select(self, kind: str, selected_id):
-        """
-        kind: author/pub/theme/location/collection
-        selected_id: id recién creado
-        """
-        # guarda selección actual por si quieres mantenerla (no imprescindible)
         self._reload_combo_data()
+
+        # ✅ refresca caches del buscador
+        for cb in (self.cb_autor, self.cb_pub, self.cb_thm, self.cb_loc, self.cb_coll):
+            if hasattr(cb, "_refresh_all_values"):
+                cb._refresh_all_values()
 
         if kind == "author":
             self.cb_autor.configure(values=list(self.map_author.keys()))
             self._select_combo_by_id(self.cb_autor, self.map_author, selected_id, AUTHOR_PH)
-            self._ttk_combo_apply_placeholder(self.cb_autor, AUTHOR_PH)
 
         elif kind == "pub":
             self.cb_pub.configure(values=list(self.map_pub.keys()))
             self._select_combo_by_id(self.cb_pub, self.map_pub, selected_id, PUBLISHER_PH)
-            self._ttk_combo_apply_placeholder(self.cb_pub, PUBLISHER_PH)
 
         elif kind == "theme":
             self.cb_thm.configure(values=list(self.map_thm.keys()))
             self._select_combo_by_id(self.cb_thm, self.map_thm, selected_id, THEME_PH)
-            self._ttk_combo_apply_placeholder(self.cb_thm, THEME_PH)
 
         elif kind == "location":
             self.cb_loc.configure(values=list(self.map_loc.keys()))
             self._select_combo_by_id(self.cb_loc, self.map_loc, selected_id, LOCATION_PH)
-            self._ttk_combo_apply_placeholder(self.cb_loc, LOCATION_PH)
 
         elif kind == "collection":
             self.cb_coll.configure(values=list(self.map_coll.keys()))
             self._select_combo_by_id(self.cb_coll, self.map_coll, selected_id, COLLECTION_PH)
-            self._ttk_combo_apply_placeholder(self.cb_coll, COLLECTION_PH)
+
+        # placeholder visual
+        self._ttk_combo_apply_placeholder(self.cb_autor, AUTHOR_PH)
+        self._ttk_combo_apply_placeholder(self.cb_pub, PUBLISHER_PH)
+        self._ttk_combo_apply_placeholder(self.cb_thm, THEME_PH)
+        self._ttk_combo_apply_placeholder(self.cb_loc, LOCATION_PH)
+        self._ttk_combo_apply_placeholder(self.cb_coll, COLLECTION_PH)
 
     # ---------- Botones "+" ----------
     def _add_author(self):
-        def on_created(created):
-            new_id = getattr(created, "id", created)
-            self._refresh_and_select("author", new_id)
-
         SimpleCreateModal(
             self,
             title="Nuevo autor",
             label="Nombre",
             placeholder="Ej: Gabriel García Márquez",
             create_fn=create_author,
-            on_created=on_created
+            on_created=lambda new_id: self._refresh_and_select("author", new_id)
         )
 
     def _add_publisher(self):
-        def on_created(created):
-            new_id = getattr(created, "id", created)
-            self._refresh_and_select("pub", new_id)
-
         SimpleCreateModal(
             self,
             title="Nueva editorial",
             label="Nombre",
             placeholder="Ej: Anagrama",
             create_fn=create_publisher,
-            on_created=on_created
+            on_created=lambda new_id: self._refresh_and_select("pub", new_id)
         )
 
     def _add_theme(self):
-        def on_created(created):
-            new_id = getattr(created, "id", created)
-            self._refresh_and_select("theme", new_id)
-
         SimpleCreateModal(
             self,
             title="Nuevo tema",
             label="Nombre",
             placeholder="Ej: Ciencia ficción",
             create_fn=create_theme,
-            on_created=on_created
+            on_created=lambda new_id: self._refresh_and_select("theme", new_id)
         )
 
     def _add_collection(self):
-        def on_created(created):
-            new_id = getattr(created, "id", created)
-            self._refresh_and_select("collection", new_id)
-
         SimpleCreateModal(
             self,
             title="Nueva colección",
             label="Nombre",
             placeholder="Ej: Pendiente de leer",
             create_fn=create_collection,
-            on_created=on_created,
-            create_kwargs={"library_id": self.library_id}  
+            create_kwargs={"library_id": self.library_id},  # ✅ obligatorio
+            on_created=lambda new_id: self._refresh_and_select("collection", new_id)
         )
 
     def _add_location(self):
-        def on_created(created):
-            new_id = getattr(created, "id", created)
-            self._refresh_and_select("location", new_id)
-
         LocationCreateModal(
             self,
             library_id=self.library_id,
-            create_fn=create_location,
-            on_created=on_created
+            create_fn=create_location,  # ✅ library_id obligatorio
+            on_created=lambda new_id: self._refresh_and_select("location", new_id)
         )
+
+    # ---------- Buscador dentro del ttk.Combobox ----------
+    def _combo_attach_search(self, combo: ttk.Combobox, placeholder: str, get_all_values_fn):
+        """
+        Combobox buscable:
+        - state="normal" (editable)
+        - filtra values al teclear (sin forzar abrir el desplegable)
+        - si sales con valor inválido -> placeholder
+        """
+        def norm(s: str) -> str:
+            return (s or "").strip().lower()
+
+        def refresh_all_values():
+            combo._all_values = get_all_values_fn()
+            combo.configure(values=combo._all_values)
+
+        combo._refresh_all_values = refresh_all_values
+        refresh_all_values()
+
+        def do_filter(_event=None):
+            typed = combo.get()
+
+            # placeholder / vacío -> lista completa
+            q = norm(typed)
+            if not q or typed == placeholder:
+                combo.configure(values=combo._all_values)
+                self._ttk_combo_apply_placeholder(combo, placeholder)
+                return
+
+            # filtra (manteniendo placeholder arriba)
+            matches = [v for v in combo._all_values if v != placeholder and q in norm(v)]
+            combo.configure(values=[placeholder] + matches)
+            self._ttk_combo_apply_placeholder(combo, placeholder)
+
+        def on_focus_in(_e=None):
+            if combo.get() == placeholder:
+                combo.set("")
+                self._ttk_combo_apply_placeholder(combo, placeholder)
+
+        def on_focus_out(_e=None):
+            current = (combo.get() or "").strip()
+            if not current:
+                combo.set(placeholder)
+            else:
+                # si no es un valor válido, intenta match exacto case-insensitive
+                if current not in combo._all_values:
+                    cur_norm = norm(current)
+                    exact = next((v for v in combo._all_values if norm(v) == cur_norm), None)
+                    combo.set(exact if exact else placeholder)
+
+            self._ttk_combo_apply_placeholder(combo, placeholder)
+
+        # ✅ MUY IMPORTANTE: add="+" para NO romper bindings internos
+        combo.bind("<KeyRelease>", do_filter, add="+")
+        combo.bind("<FocusIn>", on_focus_in, add="+")
+        combo.bind("<FocusOut>", on_focus_out, add="+")
+        combo.bind("<<ComboboxSelected>>",
+                lambda e: self._ttk_combo_apply_placeholder(combo, placeholder),
+                add="+")
 
     # ---------- Helpers UI ----------
     def _center_over_master(self):
@@ -488,32 +659,9 @@ class FormBook(ctk.CTkToplevel):
         else:
             combo.configure(style="Normal.TCombobox")
 
-    def _combo_default_text_color(self):
-        try:
-            return ctk.ThemeManager.theme["CTkComboBox"]["text_color"]
-        except Exception:
-            return None
-
-    def _apply_combo_placeholder(self, combo, placeholder: str):
-        val = combo.get() if hasattr(combo, "get") else None
-
-        try:
-            from tkinter import ttk as _ttk
-            if isinstance(combo, _ttk.Combobox):
-                combo.configure(style="Placeholder.TCombobox" if val == placeholder else "Dark.TCombobox")
-                return
-        except Exception:
-            pass
-
-        try:
-            if val == placeholder:
-                combo.configure(text_color=("gray55", "gray60"))
-            else:
-                from customtkinter import ThemeManager
-                normal = ThemeManager.theme["CTkComboBox"]["text_color"]
-                combo.configure(text_color=normal if normal is not None else None)
-        except Exception:
-            pass
+    def _apply_combo_placeholder(self, combo: ttk.Combobox, placeholder: str):
+        val = combo.get()
+        combo.configure(style="Placeholder.TCombobox" if val == placeholder else "Dark.TCombobox")
 
     # ---------- Prefill ----------
     def _prefill_from_book(self):
@@ -528,6 +676,12 @@ class FormBook(ctk.CTkToplevel):
             self.year_pub.insert(0, str(b.publication_year))
         if b.edition_year:
             self.year_ed.insert(0, str(b.edition_year))
+
+        self._ttk_combo_apply_placeholder(self.cb_autor, AUTHOR_PH)
+        self._ttk_combo_apply_placeholder(self.cb_pub, PUBLISHER_PH)
+        self._ttk_combo_apply_placeholder(self.cb_thm, THEME_PH)
+        self._ttk_combo_apply_placeholder(self.cb_loc, LOCATION_PH)
+        self._ttk_combo_apply_placeholder(self.cb_coll, COLLECTION_PH)
 
     # ---------- Guardar ----------
     def _save(self):
@@ -602,3 +756,34 @@ class FormBook(ctk.CTkToplevel):
             borderwidth=0,
             relief="flat",
         )
+
+    def _set_combo_text(self, combo: ttk.Combobox, placeholder: str, text: str):
+        combo.set(text if text else placeholder)
+        self._ttk_combo_apply_placeholder(combo, placeholder)
+
+    def _search_author(self):
+        items = [(a.id, a.name) for a in self.authors]
+        SearchSelectModal(self, "Buscar autor", items,
+                        on_selected=lambda _id, label: self._set_combo_text(self.cb_autor, AUTHOR_PH, label))
+
+    def _search_publisher(self):
+        items = [(p.id, p.name) for p in self.pubs]
+        SearchSelectModal(self, "Buscar editorial", items,
+                        on_selected=lambda _id, label: self._set_combo_text(self.cb_pub, PUBLISHER_PH, label))
+
+    def _search_theme(self):
+        items = [(t.id, t.name) for t in self.thms]
+        SearchSelectModal(self, "Buscar tema", items,
+                        on_selected=lambda _id, label: self._set_combo_text(self.cb_thm, THEME_PH, label))
+
+    def _search_collection(self):
+        items = [(c.id, c.name) for c in self.colls]
+        SearchSelectModal(self, "Buscar colección", items,
+                        on_selected=lambda _id, label: self._set_combo_text(self.cb_coll, COLLECTION_PH, label))
+
+    def _search_location(self):
+        def label_loc(l):
+            return f"{l.place}/{l.furniture} ({l.module or '-'},{l.shelf or '-'})"
+        items = [(l.id, label_loc(l)) for l in self.locs]
+        SearchSelectModal(self, "Buscar ubicación", items,
+                        on_selected=lambda _id, label: self._set_combo_text(self.cb_loc, LOCATION_PH, label))
